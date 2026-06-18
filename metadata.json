@@ -1,0 +1,6 @@
+{
+  "name": "الكاشير الذكي",
+  "description": "تطبيق نقاط البيع الكاشير الذكي لإدارة المبيعات، المخازن، الديون الكريدي، والتقارير المالية مع نظام نسخ احتياطي مشفر.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
