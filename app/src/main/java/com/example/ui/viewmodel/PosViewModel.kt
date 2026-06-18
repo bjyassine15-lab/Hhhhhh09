@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.util.Log
@@ -26,6 +27,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+
+data class ChatMessage(
+    val id: String = UUID.randomUUID().toString(),
+    val sender: String, // "user" or "advisor"
+    val text: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 class PosViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -398,6 +406,92 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             dir.mkdirs()
         }
         return dir
+    }
+
+    // --- AI ADVISOR CHAT STATE & IMPLEMENTATION ---
+    private val _aiChatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val aiChatMessages: StateFlow<List<ChatMessage>> = _aiChatMessages.asStateFlow()
+
+    private val _isAiLoading = MutableStateFlow(false)
+    val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
+
+    fun clearAiChat() {
+        _aiChatMessages.value = emptyList()
+    }
+
+    fun buildStoreDataSummary(): String {
+        val products = allProducts.value
+        val debts = customersWithDebt.value
+        val invoices = allInvoices.value
+
+        val totalProductsCount = products.size
+        val lowStockCount = products.count { (it.stockQuantity ?: 0) <= 5 }
+        val totalStockBuyValue = products.sumOf { (it.stockQuantity ?: 0) * it.purchasePrice }
+        val totalStockSellValue = products.sumOf { (it.stockQuantity ?: 0) * it.salePrice }
+        val estimatedTotalProfit = totalStockSellValue - totalStockBuyValue
+
+        val totalInvoicesCount = invoices.size
+        val totalSalesVolume = invoices.sumOf { it.invoice.totalAmount }
+        val totalCashCollected = invoices.sumOf { it.invoice.paidAmount }
+
+        val customersWithDebtCount = debts.size
+        val totalUnpaidDebtValue = debts.sumOf { it.totalDebt }
+
+        return """
+            [بيانات المتجر الفورية الحالية]
+            1. المنتجات والمستودع:
+               - إجمالي المنتجات المسجلة فريداً: $totalProductsCount منتجات.
+               - منتجات ينقصها المخزون (أقل من أو يساوي 5): $lowStockCount منتجات.
+               - إجمالي قيمة شراء المخزون الحالي: ${"%.2f".format(totalStockBuyValue)} د.ت.
+               - إجمالي قيمة بيع المخزون المتوقعة: ${"%.2f".format(totalStockSellValue)} د.ت.
+               - إجمالي الأرباح الكامنة في المخزن: ${"%.2f".format(estimatedTotalProfit)} د.ت.
+
+            2. حركة المبيعات نقداً:
+               - إجمالي عدد المعاملات والبيوعات: $totalInvoicesCount فواتير ومبيعات.
+               - إجمالي القيمة النقدية للمبيعات: ${"%.2f".format(totalSalesVolume)} د.ت.
+               - المبالغ النقدية المحصلة فعلياً: ${"%.2f".format(totalCashCollected)} د.ت.
+
+            3. السجلات والكريدي (الديون):
+               - إجمالي عدد العملاء المسجل لهم ديون: $customersWithDebtCount عملاء.
+               - القيمة المالية الإجمالية للكريدي والديون العالقة: ${"%.2f".format(totalUnpaidDebtValue)} د.ت.
+        """.trimIndent()
+    }
+
+    fun sendPromptToAi(promptText: String, context: Context, onComplete: () -> Unit = {}) {
+        val key = com.example.data.util.GeminiService.getSavedApiKey(context)
+        if (key.isBlank()) return
+
+        val textCleaned = promptText.trim()
+        if (textCleaned.isEmpty()) return
+
+        val currentList = _aiChatMessages.value.toMutableList()
+        currentList.add(ChatMessage(sender = "user", text = textCleaned))
+        _aiChatMessages.value = currentList
+
+        _isAiLoading.value = true
+
+        viewModelScope.launch {
+            val systemInstructionText = """
+                أنت مستشار مالي ذكي لتطبيق كاشير مالي متطور اسمه 'الكاشير الذكي'. مهمتك هي تحليل بيانات المتجر التي سأرسلها لك (مثل المبيعات، والديون، والمخازن والأرباح الكامنة) بدقة، وتقديم توصيات تجارية ومالية وتحليلية للتاجر لتحسين الكريدي وزيادة ربحه والتحكم في المخزون. لا تعتمد على ذكاء عام في الأمور الحسابية، بل ركز على تحليل الأرقام والبيانات المرفقة بدقة. إذا سألتك عن موضوع عام لا علاقة له بالتجارة أو المتجر أو الحسابات أو الحسابات المالية، اعتذر بلباقة ودبلوماسية مبيناً أن تخصصك فقط هو إدارة وتحليل بيانات كاشيرك الذكي. يرجى دائماً الرد باللغة العربية بأسلوب راقٍ وسهل الفهم وتجنب الرموز التقنية الصعبة.
+            """.trimIndent()
+
+            val dbSummaryContext = buildStoreDataSummary()
+            val historyList = _aiChatMessages.value.map { it.sender to it.text }
+
+            val response = com.example.data.util.GeminiService.getAdvice(
+                apiKey = key,
+                prompt = textCleaned,
+                systemInstructionText = systemInstructionText,
+                dbSummaryContext = dbSummaryContext,
+                history = historyList.dropLast(1) // exclude the newly added user message
+            )
+
+            val updatedList = _aiChatMessages.value.toMutableList()
+            updatedList.add(ChatMessage(sender = "advisor", text = response))
+            _aiChatMessages.value = updatedList
+            _isAiLoading.value = false
+            onComplete()
+        }
     }
 
     override fun onCleared() {

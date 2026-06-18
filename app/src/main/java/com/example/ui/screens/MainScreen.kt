@@ -36,6 +36,12 @@ fun MainScreen(viewModel: PosViewModel) {
     // Dialog state for backup protection
     var showBackupDialog by remember { mutableStateOf(false) }
 
+    // App state variables for AI Gatekeeper validation
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    var showGatekeeperErrorDialog by remember { mutableStateOf(false) }
+    var isCheckingGatekeeper by remember { mutableStateOf(false) }
+    var isAiVerified by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -48,6 +54,17 @@ fun MainScreen(viewModel: PosViewModel) {
                     )
                 },
                 actions = {
+                    // "إعدادات الذكاء الاصطناعي" Button
+                    IconButton(
+                        onClick = { showSettingsDialog = true }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "إعدادات مستشار الذكاء الاصطناعي",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
                     // "حماية البيانات" (Data Backup) Button
                     TextButton(
                         onClick = { showBackupDialog = true },
@@ -61,7 +78,7 @@ fun MainScreen(viewModel: PosViewModel) {
                                 Icons.Default.CloudSync,
                                 contentDescription = "حماية البيانات",
                                 modifier = Modifier.size(18.dp)
-                            )
+                              )
                             Text(
                                 "حماية البيانات",
                                 fontSize = 11.sp,
@@ -102,6 +119,35 @@ fun MainScreen(viewModel: PosViewModel) {
                     icon = { Icon(Icons.Default.BarChart, contentDescription = "التقارير") },
                     label = { Text("التقارير المالية", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
                 )
+
+                // Tab 4: AI Advisor (The Gatekeeper)
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = {
+                        val key = com.example.data.util.GeminiService.getSavedApiKey(context)
+                        if (isAiVerified) {
+                            selectedTab = 3
+                        } else {
+                            if (key.isBlank()) {
+                                showGatekeeperErrorDialog = true
+                            } else {
+                                isCheckingGatekeeper = true
+                                coroutineScope.launch {
+                                    val success = com.example.data.util.GeminiService.verifyApiKey(key)
+                                    isCheckingGatekeeper = false
+                                    if (success) {
+                                        isAiVerified = true
+                                        selectedTab = 3
+                                    } else {
+                                        showGatekeeperErrorDialog = true
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "المستشار الذكي") },
+                    label = { Text("المستشار الذكي", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                )
             }
         }
     ) { innerPadding ->
@@ -109,6 +155,11 @@ fun MainScreen(viewModel: PosViewModel) {
             0 -> PosScreen(viewModel = viewModel, paddingValues = innerPadding)
             1 -> InventoryScreen(viewModel = viewModel, paddingValues = innerPadding)
             2 -> ReportsScreen(viewModel = viewModel, paddingValues = innerPadding)
+            3 -> AiAdvisorScreen(
+                viewModel = viewModel,
+                paddingValues = innerPadding,
+                onOpenSettings = { showSettingsDialog = true }
+            )
         }
     }
 
@@ -117,6 +168,89 @@ fun MainScreen(viewModel: PosViewModel) {
         BackupRestoreDialog(
             viewModel = viewModel,
             onDismiss = { showBackupDialog = false }
+        )
+    }
+
+    // --- SETTINGS DIALOG (AI PARAMETERS SETUP) ---
+    if (showSettingsDialog) {
+        SettingsDialog(
+            onDismiss = { showSettingsDialog = false },
+            onKeyVerified = {
+                isAiVerified = true
+                selectedTab = 3
+            }
+        )
+    }
+
+    // --- SILENT CONNECT OVERLAY ---
+    if (isCheckingGatekeeper) {
+        Dialog(onDismissRequest = {}) {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = "جاري استئناف البوابة وفحص المستشار...",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+
+    // --- GATEKEEPER FAILURE DIALOG ---
+    if (showGatekeeperErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showGatekeeperErrorDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.WifiOff,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = "المستشار الذكي غير متصل",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            text = {
+                Text(
+                    text = "يرجى التأكد من تشغيل الإنترنت وصلاحية مفتاح الـ API لخدمة Gemini في صفحة الإعدادات لتثبيت وبدء مناقشة الحسابات.",
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    onClick = {
+                        showGatekeeperErrorDialog = false
+                        showSettingsDialog = true
+                    }
+                ) {
+                    Text("ضبط مفتاح الـ API")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGatekeeperErrorDialog = false }) {
+                    Text("إلغاء")
+                }
+            }
         )
     }
 }
@@ -314,3 +448,152 @@ fun BackupRestoreDialog(
         )
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsDialog(
+    onDismiss: () -> Unit,
+    onKeyVerified: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var apiKeyInput by remember { mutableStateOf(com.example.data.util.GeminiService.getSavedApiKey(context)) }
+    var keyVisibility by remember { mutableStateOf(false) }
+    var isVerifying by remember { mutableStateOf(false) }
+    var verifyResultText by remember { mutableStateOf<String?>(null) }
+
+    // Color extractions to avoid calling Composable getters in non-composable onClick blocks
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val errorColor = MaterialTheme.colorScheme.error
+
+    var verifyResultColor by remember { mutableStateOf(Color.Gray) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "⚙️ إعدادات مستشار الذكاء الاصطناعي",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = "لتفعيل المستشار المالي الفوري، نرجو تزويد مفتاح API للاتصال الآمن بخدمة Gemini. يمكنك استخراج مفتاحك الخاص مجاناً من Google AI Studio.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 16.sp,
+                    textAlign = TextAlign.Right
+                )
+
+                OutlinedTextField(
+                    value = apiKeyInput,
+                    onValueChange = { 
+                        apiKeyInput = it
+                        verifyResultText = null 
+                    },
+                    label = { Text("أدخل مفتاح Gemini API Key الخاص بك") },
+                    singleLine = true,
+                    visualTransformation = if (keyVisibility) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { keyVisibility = !keyVisibility }) {
+                            Icon(
+                                imageVector = if (keyVisibility) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = null
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (verifyResultText != null) {
+                    Text(
+                        text = verifyResultText!!,
+                        fontSize = 11.sp,
+                        color = verifyResultColor,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            if (apiKeyInput.isBlank()) {
+                                Toast.makeText(context, "الرجاء إدخال المفتاح أولاً", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            isVerifying = true
+                            verifyResultText = "جاري الاتصال والتحقق الصامت من المفتاح..."
+                            verifyResultColor = primaryColor
+                            coroutineScope.launch {
+                                val ok = com.example.data.util.GeminiService.verifyApiKey(apiKeyInput)
+                                isVerifying = false
+                                if (ok) {
+                                    com.example.data.util.GeminiService.saveApiKey(context, apiKeyInput)
+                                    verifyResultText = "🎉 ممتاز! تم التحقق بنجاح وتفعيل القناة الذكية."
+                                    verifyResultColor = Color(0xFF2E7D32)
+                                    onKeyVerified()
+                                } else {
+                                    verifyResultText = "❌ فشل الاتصال. المفتاح غير صالح أو منتهي الصلاحية أو لا توجد إنترنت."
+                                    verifyResultColor = errorColor
+                                }
+                            }
+                        },
+                        enabled = !isVerifying,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isVerifying) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Text("التحقق والتنشيط ⚡", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            com.example.data.util.GeminiService.saveApiKey(context, "")
+                            apiKeyInput = ""
+                            verifyResultText = "تم مسح مفتاحك بنجاح من الذاكرة."
+                            verifyResultColor = errorColor
+                        },
+                        modifier = Modifier.weight(0.4f)
+                    ) {
+                        Text("حذف", fontSize = 11.sp)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("إغلاق الإعدادات")
+                    }
+                }
+            }
+        }
+    }
+}
+
