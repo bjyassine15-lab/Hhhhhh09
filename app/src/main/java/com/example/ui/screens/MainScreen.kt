@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -39,6 +40,7 @@ fun MainScreen(viewModel: PosViewModel) {
     // App state variables for AI Gatekeeper validation
     var showSettingsDialog by remember { mutableStateOf(false) }
     var showGatekeeperErrorDialog by remember { mutableStateOf(false) }
+    var gatekeeperDetailedError by remember { mutableStateOf<String?>(null) }
     var isCheckingGatekeeper by remember { mutableStateOf(false) }
     var isAiVerified by remember { mutableStateOf(false) }
 
@@ -129,16 +131,18 @@ fun MainScreen(viewModel: PosViewModel) {
                             selectedTab = 3
                         } else {
                             if (key.isBlank()) {
+                                gatekeeperDetailedError = "لم يتم العثور على أي مفتاح واجهة برمجة تطبيقات (API Key) محفوظ. يرجى إدخال مفتاح Gemini الخاص بك في صفحة الإعدادات أولاً."
                                 showGatekeeperErrorDialog = true
                             } else {
                                 isCheckingGatekeeper = true
                                 coroutineScope.launch {
-                                    val success = com.example.data.util.GeminiService.verifyApiKey(key)
+                                    val err = com.example.data.util.GeminiService.verifyApiKeyDetailed(key)
                                     isCheckingGatekeeper = false
-                                    if (success) {
+                                    if (err == null) {
                                         isAiVerified = true
                                         selectedTab = 3
                                     } else {
+                                        gatekeeperDetailedError = err
                                         showGatekeeperErrorDialog = true
                                     }
                                 }
@@ -229,11 +233,31 @@ fun MainScreen(viewModel: PosViewModel) {
                 }
             },
             text = {
-                Text(
-                    text = "يرجى التأكد من تشغيل الإنترنت وصلاحية مفتاح الـ API لخدمة Gemini في صفحة الإعدادات لتثبيت وبدء مناقشة الحسابات.",
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp
-                )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "يرجى التأكد من تشغيل الإنترنت وصلاحية مفتاح الـ API لخدمة Gemini في صفحة الإعدادات لتثبيت وبدء مناقشة الحسابات.",
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp
+                    )
+                    if (gatekeeperDetailedError != null) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "التفاصيل: ${gatekeeperDetailedError!!}",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(10.dp),
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
             },
             confirmButton = {
                 Button(
@@ -314,7 +338,7 @@ fun BackupRestoreDialog(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    if (encryptedBackupString.isNotEmpty()) {
+                     if (encryptedBackupString.isNotEmpty()) {
                         OutlinedTextField(
                             value = encryptedBackupString,
                             onValueChange = {},
@@ -327,15 +351,44 @@ fun BackupRestoreDialog(
                             trailingIcon = {
                                 IconButton(
                                     onClick = {
-                                        val clip = ClipData.newPlainText("POS Backup", encryptedBackupString)
+                                        // Ensure standard trim clipboard manager set primary clip
+                                        val clip = ClipData.newPlainText("POS Backup", encryptedBackupString.trim())
                                         clipboardManager.setPrimaryClip(clip)
-                                        Toast.makeText(context, "تم نسخ الرمز بنجاح! شاركه واحفظه بسلام", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "تم كبس ونسخ الرمز الاحتياطي بنجاح!", Toast.LENGTH_SHORT).show()
                                     }
                                 ) {
                                     Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Share Intent button requested by the user
+                        Button(
+                            onClick = {
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "نسخة الكاشير الذكي الاحتياطية")
+                                    putExtra(Intent.EXTRA_TEXT, encryptedBackupString)
+                                }
+                                context.startActivity(Intent.createChooser(shareIntent, "مشاركة كود النسخة الاحتياطية الكامل"))
+                                Toast.makeText(context, "جاري فتح نافذة المشاركة الآمنة...", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary,
+                                contentColor = MaterialTheme.colorScheme.onSecondary
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.Share,
+                                contentDescription = "مشاركة",
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("مشاركة كود النسخة الكامل 📤", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -530,7 +583,7 @@ fun SettingsDialog(
                     )
                 }
 
-                Row(
+                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -544,21 +597,23 @@ fun SettingsDialog(
                             verifyResultText = "جاري الاتصال والتحقق الصامت من المفتاح..."
                             verifyResultColor = primaryColor
                             coroutineScope.launch {
-                                val ok = com.example.data.util.GeminiService.verifyApiKey(apiKeyInput)
+                                val errMessage = com.example.data.util.GeminiService.verifyApiKeyDetailed(apiKeyInput)
                                 isVerifying = false
-                                if (ok) {
+                                if (errMessage == null) {
                                     com.example.data.util.GeminiService.saveApiKey(context, apiKeyInput)
                                     verifyResultText = "🎉 ممتاز! تم التحقق بنجاح وتفعيل القناة الذكية."
                                     verifyResultColor = Color(0xFF2E7D32)
                                     onKeyVerified()
                                 } else {
-                                    verifyResultText = "❌ فشل الاتصال. المفتاح غير صالح أو منتهي الصلاحية أو لا توجد إنترنت."
+                                    verifyResultText = "❌ فشل الاتصال: $errMessage"
                                     verifyResultColor = errorColor
+                                    Toast.makeText(context, "$errMessage", Toast.LENGTH_LONG).show()
                                 }
                             }
                         },
                         enabled = !isVerifying,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                     ) {
                         if (isVerifying) {
                             CircularProgressIndicator(
@@ -567,8 +622,32 @@ fun SettingsDialog(
                                 color = MaterialTheme.colorScheme.onPrimary
                             )
                         } else {
-                            Text("التحقق والتنشيط ⚡", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("التحقق والتنشيط ⚡", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         }
+                    }
+
+                    // Force Save / Skip verification button requested by user
+                    Button(
+                        onClick = {
+                            if (apiKeyInput.isBlank()) {
+                                Toast.makeText(context, "الرجاء إدخال المفتاح أولاً", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            com.example.data.util.GeminiService.saveApiKey(context, apiKeyInput)
+                            Toast.makeText(context, "تم تخطي الفحص والاتصال وحفظ المفتاح بنجاح!", Toast.LENGTH_LONG).show()
+                            verifyResultText = "💾 تم الحفظ وتخطي الفحص بنجاح."
+                            verifyResultColor = Color(0xFF2E7D32)
+                            onKeyVerified()
+                        },
+                        enabled = !isVerifying,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary,
+                            contentColor = MaterialTheme.colorScheme.onTertiary
+                        ),
+                        modifier = Modifier.weight(0.9f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                    ) {
+                        Text("تخطي وحفظ 💾", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
 
                     OutlinedButton(
@@ -578,9 +657,10 @@ fun SettingsDialog(
                             verifyResultText = "تم مسح مفتاحك بنجاح من الذاكرة."
                             verifyResultColor = errorColor
                         },
-                        modifier = Modifier.weight(0.4f)
+                        modifier = Modifier.weight(0.45f),
+                        contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp)
                     ) {
-                        Text("حذف", fontSize = 11.sp)
+                        Text("حذف", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 

@@ -95,8 +95,16 @@ object GeminiService {
      * Silent API Verification Check (The Gatekeeper).
      * Performs a very fast, tiny check with the entered key to test validity before launching chat.
      */
-    suspend fun verifyApiKey(apiKey: String): Boolean = withContext(Dispatchers.IO) {
-        if (apiKey.isBlank()) return@withContext false
+    suspend fun verifyApiKey(apiKey: String): Boolean {
+        return verifyApiKeyDetailed(apiKey) == null
+    }
+
+    /**
+     * Silent API Verification Check (The Gatekeeper) returning detailed error if any.
+     * Returns null if success, or detailed error message string if failed.
+     */
+    suspend fun verifyApiKeyDetailed(apiKey: String): String? = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) return@withContext "مفتاح الـ API فارغ."
         try {
             val testRequest = GeminiRequest(
                 contents = listOf(
@@ -105,10 +113,23 @@ object GeminiService {
             )
             val response = api.generateContent(apiKey, testRequest)
             val textResult = response.candidates?.getOrNull(0)?.content?.parts?.getOrNull(0)?.text
-            !textResult.isNullOrBlank()
+            if (textResult.isNullOrBlank()) {
+                "تم الاتصال ولكن استجابة خادم الذكاء الاصطناعي كانت فارغة."
+            } else {
+                null // null indicates success
+            }
         } catch (e: Exception) {
             e.printStackTrace()
-            false
+            val baseMessage = e.message ?: e.toString()
+            when {
+                baseMessage.contains("Unable to resolve host") || baseMessage.contains("UnknownHostException") || baseMessage.contains("connect") -> 
+                    "لا يتوفر اتصال بالإنترنت (تحقق من الشبكة)."
+                baseMessage.contains("400") -> "المفتاح غير معتمد أو غير متوافق مع خادم الذكاء الاصطناعي (HTTP 400)."
+                baseMessage.contains("403") -> "مفتاح الـ API غير صالح أو غير مصرح له (HTTP 403 Forbidden)."
+                baseMessage.contains("429") -> "تجاوزت الحصة/الضغط المسموح به للمفتاح حالياً (HTTP 429)."
+                baseMessage.contains("timeout") || baseMessage.contains("Timeout") -> "انتهت مهلة طلب الاتصال بالخادم (Timeout)."
+                else -> "فشل المزامنة الذكية: $baseMessage"
+            }
         }
     }
 
