@@ -28,7 +28,10 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(viewModel: PosViewModel) {
+fun MainScreen(
+    viewModel: PosViewModel,
+    onThemeToggle: () -> Unit = {}
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -60,16 +63,7 @@ fun MainScreen(viewModel: PosViewModel) {
                     // "تبديل المظهر الليلي والنهاري" Switcher Button
                     val isDarkThemeNow = isSystemInDarkTheme()
                     IconButton(
-                        onClick = {
-                            val nextNightMode = if (isDarkThemeNow) {
-                                androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
-                            } else {
-                                androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
-                            }
-                            val sharedPrefs = context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE)
-                            sharedPrefs.edit().putInt("night_mode_state", nextNightMode).apply()
-                            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(nextNightMode)
-                        }
+                        onClick = onThemeToggle
                     ) {
                         Icon(
                             imageVector = if (isDarkThemeNow) Icons.Default.LightMode else Icons.Default.DarkMode,

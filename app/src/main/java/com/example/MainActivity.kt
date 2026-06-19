@@ -7,6 +7,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.ui.screens.MainScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.PosViewModel
@@ -28,8 +33,27 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MyApplicationTheme {
-                MainScreen(viewModel = viewModel)
+            // Keep a Compose state for active night mode so toggles react instantly in the UI!
+            var currentThemeMode by remember { 
+                mutableIntStateOf(getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE).getInt("night_mode_state", AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM))
+            }
+
+            val isDarkThemeNow = when (currentThemeMode) {
+                AppCompatDelegate.MODE_NIGHT_YES -> true
+                AppCompatDelegate.MODE_NIGHT_NO -> false
+                else -> isSystemInDarkTheme()
+            }
+
+            MyApplicationTheme(darkTheme = isDarkThemeNow, dynamicColor = false) {
+                MainScreen(
+                    viewModel = viewModel,
+                    onThemeToggle = {
+                        val nextMode = if (isDarkThemeNow) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
+                        getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE).edit().putInt("night_mode_state", nextMode).apply()
+                        AppCompatDelegate.setDefaultNightMode(nextMode)
+                        currentThemeMode = nextMode
+                    }
+                )
             }
         }
     }

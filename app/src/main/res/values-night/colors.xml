@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand colors (Dark Palette) -->
+    <color name="primary_color">#80CBC4</color>     <!-- Teal80 -->
+    <color name="secondary_color">#B2DFDB</color>   <!-- TealGrey80 -->
+    <color name="background_color">#121212</color>  <!-- Deep eye-friendly gray -->
+    <color name="surface_color">#1E1E1E</color>     <!-- Contrast card surface -->
+    <color name="text_color">#E1E3E2</color>        <!-- Radiant light gray -->
+</resources>
