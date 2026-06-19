@@ -36,8 +36,41 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.common.InputImage
+import android.media.AudioManager
+import android.media.ToneGenerator
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.common.Barcode
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+
+// Helper method for barcode verification (100% correct EAN-13 & EAN-8 checksum check and basic length logic)
+private fun isValidBarcode(code: String): Boolean {
+    val trimmed = code.trim()
+    if (trimmed.length < 4) return false
+    if (trimmed.all { it.isDigit() }) {
+        if (trimmed.length == 13) {
+            var sum = 0
+            for (i in 0..11) {
+                val digit = trimmed[i] - '0'
+                sum += if (i % 2 == 0) digit else digit * 3
+            }
+            val checkDigit = (10 - (sum % 10)) % 10
+            val originalCheck = trimmed[12] - '0'
+            return checkDigit == originalCheck
+        }
+        if (trimmed.length == 8) {
+            var sum = 0
+            for (i in 0..6) {
+                val digit = trimmed[i] - '0'
+                sum += if (i % 2 == 0) digit * 3 else digit
+            }
+            val checkDigit = (10 - (sum % 10)) % 10
+            val originalCheck = trimmed[7] - '0'
+            return checkDigit == originalCheck
+        }
+    }
+    return true
+}
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -99,7 +132,31 @@ fun CameraPreviewAndScanner(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
-    val scanner = remember { BarcodeScanning.getClient() }
+    
+    // Strict 1D Barcode Formats for maximum speed and accuracy
+    val options = remember {
+        BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_EAN_13,
+                Barcode.FORMAT_EAN_8,
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_UPC_E,
+                Barcode.FORMAT_CODE_128,
+                Barcode.FORMAT_CODE_39
+            )
+            .build()
+    }
+    val scanner = remember { BarcodeScanning.getClient(options) }
+
+    // Professional, crisp beep generator modeled after professional checkout counters
+    val toneGenerator = remember {
+        try {
+            ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+        } catch (e: Exception) {
+            Log.e("CameraPreviewAndScanner", "Failed to initialize ToneGenerator", e)
+            null
+        }
+    }
 
     // 2-second cooldown delay to prevent crazy duplicated scans (multi-scan)
     val lastScanTime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
@@ -109,6 +166,11 @@ fun CameraPreviewAndScanner(
         onDispose {
             cameraExecutor.shutdown()
             scanner.close()
+            try {
+                toneGenerator?.release()
+            } catch (e: Exception) {
+                Log.e("CameraPreviewAndScanner", "Failed to release ToneGenerator", e)
+            }
         }
     }
 
@@ -126,13 +188,16 @@ fun CameraPreviewAndScanner(
             cameraProviderFuture.addListener({
                 val cameraProvider = cameraProviderFuture.get()
 
-                // Preview Use Case
-                val preview = Preview.Builder().build().also {
-                    it.surfaceProvider = previewView.surfaceProvider
-                }
+                // Preview Use Case set to crisp 720p for optimal line contrast
+                val preview = Preview.Builder()
+                    .setTargetResolution(android.util.Size(1280, 720))
+                    .build().also {
+                        it.surfaceProvider = previewView.surfaceProvider
+                    }
 
-                // ImageAnalysis Use Case
+                // ImageAnalysis Use Case set to 720p with non-blocking latest frames
                 val imageAnalysis = ImageAnalysis.Builder()
+                    .setTargetResolution(android.util.Size(1280, 720))
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
 
@@ -146,7 +211,7 @@ fun CameraPreviewAndScanner(
                         )
 
                         val now = System.currentTimeMillis()
-                        // Ignore any incoming frames during the 2 seconds cooldown
+                        // Ignore frame completely if inside cooldown
                         if (now - lastScanTime.get() < cooldownMs) {
                             imageProxy.close()
                             return@setAnalyzer
@@ -156,13 +221,21 @@ fun CameraPreviewAndScanner(
                             .addOnSuccessListener { barcodes ->
                                 for (barcode in barcodes) {
                                     val code = barcode.rawValue
-                                    if (!code.isNullOrEmpty()) {
+                                    if (!code.isNullOrEmpty() && isValidBarcode(code)) {
                                         val currentTime = System.currentTimeMillis()
                                         if (currentTime - lastScanTime.get() >= cooldownMs) {
                                             lastScanTime.set(currentTime)
+                                            
+                                            // Professional high-pitched beep tone confirmation
+                                            try {
+                                                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
+                                            } catch (e: Exception) {
+                                                Log.e("CameraPreviewAndScanner", "Failed to play beep", e)
+                                            }
+
                                             onBarcodeDetected(code)
                                         }
-                                        break // Only emit first valid barcode
+                                        break // Only emit first validated barcode in frame
                                     }
                                 }
                             }
@@ -182,12 +255,15 @@ fun CameraPreviewAndScanner(
 
                 try {
                     cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
+                    val camera = cameraProvider.bindToLifecycle(
                         lifecycleOwner,
                         cameraSelector,
                         preview,
                         imageAnalysis
                     )
+                    
+                    // Force Continuous Auto Focus picture/video mode
+                    camera.cameraControl.cancelFocusAndMetering()
                 } catch (exc: Exception) {
                     Log.e("CameraPreviewAndScanner", "Camera X binding failed", exc)
                 }
