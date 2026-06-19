@@ -1,6 +1,8 @@
 package com.example.data.util
 
 import android.content.Context
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKeys
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -77,18 +79,50 @@ object GeminiService {
             .create(GeminiApi::class.java)
     }
 
-    // --- SharedPreferences Helpers for the API Key ---
+    // --- SharedPreferences Helpers for the API Key with Resilient Encryption fallback ---
     private const val PREFS_NAME = "smart_cashier_ai_prefs"
     private const val KEY_API_KEY = "gemini_api_key_pos"
 
+    private fun getEncryptedPrefs(context: Context): android.content.SharedPreferences {
+        return try {
+            val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
+            EncryptedSharedPreferences.create(
+                "secure_smart_cashier_ai_prefs",
+                masterKeyAlias,
+                context,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Graceful resilient fallback: standard app sandboxed preferences
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        }
+    }
+
     fun getSavedApiKey(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_API_KEY, "").orEmpty()
+        val securePrefs = getEncryptedPrefs(context)
+        var key = securePrefs.getString(KEY_API_KEY, "")
+        // Migrator layer: transparently read and upgrade from legacy plain configuration
+        if (key.isNullOrBlank()) {
+            val plainPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            key = plainPrefs.getString(KEY_API_KEY, "")
+            if (!key.isNullOrBlank()) {
+                securePrefs.edit().putString(KEY_API_KEY, key.trim()).apply()
+            }
+        }
+        return key.orEmpty().trim()
     }
 
     fun saveApiKey(context: Context, apiKey: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_API_KEY, apiKey.trim()).apply()
+        val securePrefs = getEncryptedPrefs(context)
+        securePrefs.edit().putString(KEY_API_KEY, apiKey.trim()).apply()
+        
+        // Wipe legacy insecure reference
+        val plainPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        if (plainPrefs.contains(KEY_API_KEY)) {
+            plainPrefs.edit().remove(KEY_API_KEY).apply()
+        }
     }
 
     /**
@@ -114,21 +148,23 @@ object GeminiService {
             val response = api.generateContent(apiKey, testRequest)
             val textResult = response.candidates?.getOrNull(0)?.content?.parts?.getOrNull(0)?.text
             if (textResult.isNullOrBlank()) {
-                "تم الاتصال ولكن استجابة خادم الذكاء الاصطناعي كانت فارغة."
+                "Connection succeeded, but AI generation response was empty."
             } else {
                 null // null indicates success
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            val baseMessage = e.message ?: e.toString()
+            val rawMessage = e.localizedMessage ?: e.message ?: e.toString()
+            val baseMessage = rawMessage.lowercase()
             when {
-                baseMessage.contains("Unable to resolve host") || baseMessage.contains("UnknownHostException") || baseMessage.contains("connect") -> 
-                    "لا يتوفر اتصال بالإنترنت (تحقق من الشبكة)."
-                baseMessage.contains("400") -> "المفتاح غير معتمد أو غير متوافق مع خادم الذكاء الاصطناعي (HTTP 400)."
-                baseMessage.contains("403") -> "مفتاح الـ API غير صالح أو غير مصرح له (HTTP 403 Forbidden)."
-                baseMessage.contains("429") -> "تجاوزت الحصة/الضغط المسموح به للمفتاح حالياً (HTTP 429)."
-                baseMessage.contains("timeout") || baseMessage.contains("Timeout") -> "انتهت مهلة طلب الاتصال بالخادم (Timeout)."
-                else -> "فشل المزامنة الذكية: $baseMessage"
+                baseMessage.contains("unable to resolve host") || baseMessage.contains("unknownhostexception") || baseMessage.contains("connect") -> 
+                    "No internet connection (check your network setup)."
+                baseMessage.contains("400") -> "Key incorrect or unsupported format (HTTP 400 Bad Request). Raw API Response: $rawMessage"
+                baseMessage.contains("403") -> "Key invalid or unauthorized (HTTP 403 Forbidden). Raw API Response: $rawMessage"
+                baseMessage.contains("503") -> "Gemini API unavailable temporarily (HTTP 503 Service Unavailable). Raw API Response: $rawMessage"
+                baseMessage.contains("429") -> "Quota exceeded for this API key (HTTP 429 Too Many Requests). Raw API Response: $rawMessage"
+                baseMessage.contains("timeout") || baseMessage.contains("timeout") -> "Request timed out (Timeout)."
+                else -> "Detailed exception from Google: $rawMessage"
             }
         }
     }

@@ -101,6 +101,10 @@ fun CameraPreviewAndScanner(
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
     val scanner = remember { BarcodeScanning.getClient() }
 
+    // 2-second cooldown delay to prevent crazy duplicated scans (multi-scan)
+    val lastScanTime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
+    val cooldownMs = 2000L
+
     DisposableEffect(Unit) {
         onDispose {
             cameraExecutor.shutdown()
@@ -140,12 +144,25 @@ fun CameraPreviewAndScanner(
                             mediaImage,
                             imageProxy.imageInfo.rotationDegrees
                         )
+
+                        val now = System.currentTimeMillis()
+                        // Ignore any incoming frames during the 2 seconds cooldown
+                        if (now - lastScanTime.get() < cooldownMs) {
+                            imageProxy.close()
+                            return@setAnalyzer
+                        }
+
                         scanner.process(image)
                             .addOnSuccessListener { barcodes ->
                                 for (barcode in barcodes) {
                                     val code = barcode.rawValue
                                     if (!code.isNullOrEmpty()) {
-                                        onBarcodeDetected(code)
+                                        val currentTime = System.currentTimeMillis()
+                                        if (currentTime - lastScanTime.get() >= cooldownMs) {
+                                            lastScanTime.set(currentTime)
+                                            onBarcodeDetected(code)
+                                        }
+                                        break // Only emit first valid barcode
                                     }
                                 }
                             }

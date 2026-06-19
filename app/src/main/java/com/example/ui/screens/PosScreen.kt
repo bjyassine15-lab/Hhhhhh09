@@ -57,243 +57,218 @@ fun PosScreen(
 
     var isCameraVisible by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)
-    ) {
-        // --- SECTION 1: CAM PREVIEW (Hidden/Collapsed by default) ---
-        if (isCameraVisible) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.40f)
-                    .background(Color.Black)
-            ) {
-                CameraScannerView(
-                    viewModel = viewModel,
-                    onBarcodeDetected = { barcode ->
-                        viewModel.scanProductBarcode(
-                            barcode = barcode,
-                            onMatched = { product ->
-                                // Product matched and added automatically, auto-close camera
-                                isCameraVisible = false
-                            },
-                            onNotFound = { badBarcode ->
-                                unknownBarcode = badBarcode
-                                showScanErrorDialog = true
-                            }
-                        )
-                    }
-                )
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
-                // Close/X button to hide camera
-                IconButton(
-                    onClick = { isCameraVisible = false },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = "إغلاق الكاميرا", tint = Color.White)
-                }
-
-                // Force reset scan memory to scanning same item again
-                IconButton(
-                    onClick = {
-                        viewModel.forceResetScanMemory()
-                        Toast.makeText(context, "تم إعادة تهيئة الذاكرة المؤقتة للمسح", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                ) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Reset scanning", tint = Color.White)
-                }
-            }
-        }
-
-        // --- SECTION 2: CART SCROLLABLE LIST (Top section holds the scan camera toggle) ---
-        Column(
+    if (isLandscape) {
+        Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(if (isCameraVisible) 0.60f else 1f)
-                .background(MaterialTheme.colorScheme.surface)
+                .fillMaxSize()
+                .padding(paddingValues)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "سلة المشتريات (${cartItems.sumOf { it.quantity }} عناصر)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            // Section 1 Left: Camera Scanner (Continuous Scanning & 2s cooldown)
+            if (isCameraVisible) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(Color.Black)
+                ) {
+                    CameraScannerView(
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxSize(),
+                        onBarcodeDetected = { barcode ->
+                            viewModel.scanProductBarcode(
+                                barcode = barcode,
+                                onMatched = { product ->
+                                    Toast.makeText(context, "${product.name} تمت إضافته للسلة بنجاح ✅", Toast.LENGTH_SHORT).show()
+                                },
+                                onNotFound = { badBarcode ->
+                                    unknownBarcode = badBarcode
+                                    showScanErrorDialog = true
+                                }
+                            )
+                        }
+                    )
 
-                if (!isCameraVisible) {
-                    Button(
-                        onClick = { isCameraVisible = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    // Close/X button to hide camera
+                    IconButton(
+                        onClick = { isCameraVisible = false },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.PhotoCamera,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "مسح باركود 📷",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق الكاميرا", tint = Color.White)
+                    }
+
+                    // Force reset scan memory
+                    IconButton(
+                        onClick = {
+                            viewModel.forceResetScanMemory()
+                            Toast.makeText(context, "تم إعادة تهيئة الذاكرة المؤقتة للمسح", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Reset scanning", tint = Color.White)
                     }
                 }
             }
 
-            if (cartItems.isEmpty()) {
+            // Section 2 Right: Cart List / checkout
+            Column(
+                modifier = Modifier
+                    .weight(if (isCameraVisible) 1.2f else 2f)
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                CartHeader(
+                    cartItemsCount = cartItems.sumOf { it.quantity },
+                    isCameraVisible = isCameraVisible,
+                    onOpenCamera = { isCameraVisible = true }
+                )
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
+                        .weight(1f)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.ShoppingCart,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "السلة فارغة. قم بمسح الرمز التعريفي للمنتج بالكاميرا لإضافته مباشرة",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 32.dp)
+                    if (cartItems.isEmpty()) {
+                        EmptyCartView()
+                    } else {
+                        CartList(
+                            cartItems = cartItems,
+                            viewModel = viewModel
                         )
                     }
                 }
-            } else {
-                LazyColumn(
+
+                if (cartItems.isNotEmpty()) {
+                    CheckoutBottomBar(
+                        totalAmount = totalAmount,
+                        cartItems = cartItems,
+                        onSettleCash = {
+                            coroutineScope.launch {
+                                val success = viewModel.completeCashSale()
+                                if (success) {
+                                    isDebtSettledSuccess = false
+                                    showSuccessDialog = true
+                                } else {
+                                    Toast.makeText(context, "حدث خطأ أثناء إتمام عملية البيع", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        onSettleDebt = { showDebtDialog = true }
+                    )
+                }
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // SECTION 1: Camera Preview on Portrait (at top, weight 0.40f)
+            if (isCameraVisible) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    contentPadding = PaddingValues(bottom = 8.dp)
+                        .weight(0.40f)
+                        .background(Color.Black)
                 ) {
-                    items(cartItems, key = { it.product.id }) { item ->
-                        CartItemRow(
-                            item = item,
-                            onIncrement = { viewModel.incrementCartItem(item.product) },
-                            onDecrement = { viewModel.decrementCartItem(item.product) },
-                            onDelete = { viewModel.removeFromCart(item.product) }
-                        )
+                    CameraScannerView(
+                        viewModel = viewModel,
+                        modifier = Modifier.fillMaxSize(),
+                        onBarcodeDetected = { barcode ->
+                            viewModel.scanProductBarcode(
+                                barcode = barcode,
+                                onMatched = { product ->
+                                    Toast.makeText(context, "${product.name} تمت إضافته للسلة بنجاح ✅", Toast.LENGTH_SHORT).show()
+                                },
+                                onNotFound = { badBarcode ->
+                                    unknownBarcode = badBarcode
+                                    showScanErrorDialog = true
+                                }
+                            )
+                        }
+                    )
+
+                    // Close/X button to hide camera
+                    IconButton(
+                        onClick = { isCameraVisible = false },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "إغلاق الكاميرا", tint = Color.White)
+                    }
+
+                    // Force reset scan memory
+                    IconButton(
+                        onClick = {
+                            viewModel.forceResetScanMemory()
+                            Toast.makeText(context, "تم إعادة تهيئة الذاكرة المؤقتة للمسح", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Reset scanning", tint = Color.White)
                     }
                 }
             }
 
-            // Divider
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            // --- BOTTOM SETTLEMENT CONTAINER ---
-            Surface(
-                tonalElevation = 6.dp,
-                modifier = Modifier.fillMaxWidth()
+            // SECTION 2: Cart List / checkout
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(if (isCameraVisible) 0.60f else 1f)
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
-                Column(
+                CartHeader(
+                    cartItemsCount = cartItems.sumOf { it.quantity },
+                    isCameraVisible = isCameraVisible,
+                    onOpenCamera = { isCameraVisible = true }
+                )
+
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp)
+                        .weight(1f)
                 ) {
-                    // Total display row
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "الإجمالي المستحق:",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = String.format("%.2f د.ت", totalAmount),
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
+                    if (cartItems.isEmpty()) {
+                        EmptyCartView()
+                    } else {
+                        CartList(
+                            cartItems = cartItems,
+                            viewModel = viewModel
                         )
                     }
+                }
 
-                    // Bottom navigation settlement buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Pay Cash Button (55%)
-                        Button(
-                            onClick = {
-                                if (cartItems.isEmpty()) {
-                                    Toast.makeText(context, "الرجاء إضافة منتجات للسلة أولاً", Toast.LENGTH_SHORT).show()
-                                    return@Button
+                if (cartItems.isNotEmpty()) {
+                    CheckoutBottomBar(
+                        totalAmount = totalAmount,
+                        cartItems = cartItems,
+                        onSettleCash = {
+                            coroutineScope.launch {
+                                val success = viewModel.completeCashSale()
+                                if (success) {
+                                    isDebtSettledSuccess = false
+                                    showSuccessDialog = true
+                                } else {
+                                    Toast.makeText(context, "حدث خطأ أثناء إتمام عملية البيع", Toast.LENGTH_SHORT).show()
                                 }
-                                coroutineScope.launch {
-                                    val success = viewModel.completeCashSale()
-                                    if (success) {
-                                        isDebtSettledSuccess = false
-                                        showSuccessDialog = true
-                                    } else {
-                                        Toast.makeText(context, "حدث خطأ أثناء إتمام عملية البيع", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            modifier = Modifier.weight(1.2f),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(vertical = 12.dp)
-                        ) {
-                            Icon(Icons.Default.Check, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                "إنهاء البيع (نقداً)",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        // Pay Credit/Debt Button (45%)
-                        Button(
-                            onClick = {
-                                if (cartItems.isEmpty()) {
-                                    Toast.makeText(context, "الرجاء إضافة منتجات للسلة أولاً", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                showDebtDialog = true
-                            },
-                            modifier = Modifier.weight(0.8f),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(vertical = 12.dp)
-                        ) {
-                            Icon(Icons.Default.Person, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                "الكريدي (ديون)",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                            }
+                        },
+                        onSettleDebt = { showDebtDialog = true }
+                    )
                 }
             }
         }
@@ -674,6 +649,177 @@ fun DebtSettlementDialog(
                         ) {
                             Text("إنشاء وتسجيل")
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CartHeader(
+    cartItemsCount: Int,
+    isCameraVisible: Boolean,
+    onOpenCamera: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "سلة المشتريات ($cartItemsCount عناصر)",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        if (!isCameraVisible) {
+            Button(
+                onClick = onOpenCamera,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PhotoCamera,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "مسح باركود 📷",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyCartView() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Default.ShoppingCart,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "السلة فارغة. قم بمسح الرمز التعريفي للمنتج بالكاميرا لإضافته مباشرة",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun CartList(
+    cartItems: List<com.example.data.model.CartItem>,
+    viewModel: PosViewModel
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 8.dp)
+    ) {
+        items(cartItems, key = { it.product.id }) { item ->
+            CartItemRow(
+                item = item,
+                onIncrement = { viewModel.incrementCartItem(item.product) },
+                onDecrement = { viewModel.decrementCartItem(item.product) },
+                onDelete = { viewModel.removeFromCart(item.product) }
+            )
+        }
+    }
+}
+
+@Composable
+fun CheckoutBottomBar(
+    totalAmount: Double,
+    cartItems: List<com.example.data.model.CartItem>,
+    onSettleCash: () -> Unit,
+    onSettleDebt: () -> Unit
+) {
+    val context = LocalContext.current
+    Column {
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        Surface(
+            tonalElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "الإجمالي المستحق:",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = String.format("%.2f د.ت", totalAmount),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onSettleCash,
+                        modifier = Modifier.weight(1.2f),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "إنهاء البيع (نقداً)",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Button(
+                        onClick = onSettleDebt,
+                        modifier = Modifier.weight(0.8f),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = null)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "الكريدي (ديون)",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }

@@ -470,7 +470,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
         _isAiLoading.value = true
 
-        viewModelScope.launch {
+        // Strict Coroutines background execution (Dispatchers.IO) preventing any main thread lag/ANR
+        viewModelScope.launch(Dispatchers.IO) {
             val systemInstructionText = """
                 أنت مستشار مالي ذكي لتطبيق كاشير مالي متطور اسمه 'الكاشير الذكي'. مهمتك هي تحليل بيانات المتجر التي سأرسلها لك (مثل المبيعات، والديون، والمخازن والأرباح الكامنة) بدقة، وتقديم توصيات تجارية ومالية وتحليلية للتاجر لتحسين الكريدي وزيادة ربحه والتحكم في المخزون. لا تعتمد على ذكاء عام في الأمور الحسابية، بل ركز على تحليل الأرقام والبيانات المرفقة بدقة. إذا سألتك عن موضوع عام لا علاقة له بالتجارة أو المتجر أو الحسابات أو الحسابات المالية، اعتذر بلباقة ودبلوماسية مبيناً أن تخصصك فقط هو إدارة وتحليل بيانات كاشيرك الذكي. يرجى دائماً الرد باللغة العربية بأسلوب راقٍ وسهل الفهم وتجنب الرموز التقنية الصعبة.
             """.trimIndent()
@@ -478,19 +479,30 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
             val dbSummaryContext = buildStoreDataSummary()
             val historyList = _aiChatMessages.value.map { it.sender to it.text }
 
-            val response = com.example.data.util.GeminiService.getAdvice(
-                apiKey = key,
-                prompt = textCleaned,
-                systemInstructionText = systemInstructionText,
-                dbSummaryContext = dbSummaryContext,
-                history = historyList.dropLast(1) // exclude the newly added user message
-            )
+            try {
+                val response = com.example.data.util.GeminiService.getAdvice(
+                    apiKey = key,
+                    prompt = textCleaned,
+                    systemInstructionText = systemInstructionText,
+                    dbSummaryContext = dbSummaryContext,
+                    history = historyList.dropLast(1) // exclude the newly added user message
+                )
 
-            val updatedList = _aiChatMessages.value.toMutableList()
-            updatedList.add(ChatMessage(sender = "advisor", text = response))
-            _aiChatMessages.value = updatedList
-            _isAiLoading.value = false
-            onComplete()
+                val updatedList = _aiChatMessages.value.toMutableList()
+                updatedList.add(ChatMessage(sender = "advisor", text = response))
+                _aiChatMessages.value = updatedList
+            } catch (e: Exception) {
+                e.printStackTrace()
+                val detailedErr = e.localizedMessage ?: e.message ?: e.toString()
+                val updatedList = _aiChatMessages.value.toMutableList()
+                updatedList.add(ChatMessage(sender = "advisor", text = "⚠️ حدث خطأ في النظام: $detailedErr"))
+                _aiChatMessages.value = updatedList
+            } finally {
+                _isAiLoading.value = false
+                withContext(Dispatchers.Main) {
+                    onComplete()
+                }
+            }
         }
     }
 
