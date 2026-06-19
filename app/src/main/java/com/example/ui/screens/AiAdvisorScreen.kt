@@ -71,6 +71,7 @@ fun AiAdvisorScreen(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
             ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
             Row(
@@ -553,7 +554,7 @@ fun AiAdvisorScreen(
                             enabled = !isVerifying,
                             onClick = {
                                 if (apiKeyInput.isBlank()) {
-                                    verifyResultText = "⚠️ يرجى إدخال مفتاح الـ API أولاً"
+                                    verifyResultText = "يرجى إدخال مفتاح الـ API أولاً"
                                     verifyResultColor = errorColor
                                     return@Button
                                 }
@@ -565,11 +566,11 @@ fun AiAdvisorScreen(
                                     isVerifying = false
                                     if (err == null) {
                                         com.example.data.util.GeminiService.saveApiKey(context, apiKeyInput)
-                                        verifyResultText = "🎉 تم التحقق بنجاح وتنشيط الخدمة!"
+                                        verifyResultText = "تم التحقق بنجاح وتنشيط الخدمة بنجاح!"
                                         verifyResultColor = Color(0xFF2E7D32)
                                         Toast.makeText(context, "تم حفظ وتفعيل مفتاح Gemini بنجاح!", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        verifyResultText = "❌ فشل الاتصال: $err"
+                                        verifyResultText = "فشل الاتصال والربط: $err"
                                         verifyResultColor = errorColor
                                     }
                                 }

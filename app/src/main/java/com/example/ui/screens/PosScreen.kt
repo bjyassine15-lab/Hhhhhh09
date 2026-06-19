@@ -417,7 +417,8 @@ fun CartItemRow(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Row(
             modifier = Modifier
@@ -567,7 +568,8 @@ fun DebtSettlementDialog(
                 .fillMaxWidth(if (isLandscape) 0.85f else 0.95f)
                 .padding(vertical = if (isLandscape) 4.dp else 12.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -680,6 +682,7 @@ fun DebtSettlementDialog(
                                                 MaterialTheme.colorScheme.surface
                                             }
                                         ),
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                                         shape = RoundedCornerShape(10.dp),
                                         border = androidx.compose.foundation.BorderStroke(
                                             width = 1.dp,
@@ -749,7 +752,7 @@ fun DebtSettlementDialog(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = "🔍 لا توجد نتائج مطابقة لبحثك",
+                                                text = "لا توجد نتائج مطابقة لبحثك",
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontSize = 12.sp,
                                                 textAlign = TextAlign.Center
@@ -876,13 +879,13 @@ fun CartHeader(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.PhotoCamera,
+                    imageVector = Icons.Default.QrCodeScanner,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "مسح باركود 📷",
+                    text = "مسح الباركود",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )

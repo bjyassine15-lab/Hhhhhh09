@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -46,12 +47,42 @@ fun MainScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
+                navigationIcon = {
+                    // Portal button to access the Intelligent AI Advisor, styled as a modern interactive circular badge with elevation
+                    Card(
+                        onClick = {
+                            selectedTab = if (selectedTab == 3) 0 else 3
+                        },
+                        shape = CircleShape,
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (selectedTab == 3) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(38.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "المستشار الذكي",
+                                tint = if (selectedTab == 3) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                },
                 title = {
                     Text(
-                        text = "الكاشير الذكي ونقاط البيع",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        text = "Prime Ledger",
+                        fontWeight = FontWeight.Black,
+                        fontSize = 19.sp,
+                        letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
                     )
                 },
                 actions = {
@@ -67,9 +98,7 @@ fun MainScreen(
                         )
                     }
 
-
-
-                    // "حماية البيانات" (Data Backup) Button
+                    // "حماية البيانات" (Data Backup) Button with Premium Minimalist Shield Icon
                     TextButton(
                         onClick = { showBackupDialog = true },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
@@ -79,14 +108,15 @@ fun MainScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             Icon(
-                                Icons.Default.CloudSync,
+                                Icons.Default.Shield,
                                 contentDescription = "حماية البيانات",
                                 modifier = Modifier.size(18.dp)
                               )
                             Text(
                                 "حماية البيانات",
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -98,14 +128,14 @@ fun MainScreen(
         },
         bottomBar = {
             NavigationBar(
-                tonalElevation = 8.dp
+                tonalElevation = 6.dp
             ) {
-                // Tab 1: Selling POS
+                // Tab 1: Selling POS (perfect horizontal and center aligned wide items)
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Icon(Icons.Default.PointOfSale, contentDescription = "شاشة البيع") },
-                    label = { Text("شاشة البيع", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    label = { Text("شاشة البيع", fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
                 )
 
                 // Tab 2: Inventory
@@ -113,7 +143,7 @@ fun MainScreen(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     icon = { Icon(Icons.Default.Inventory2, contentDescription = "المنتجات والمخزن") },
-                    label = { Text("المنتجات والمخازن", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    label = { Text("المنتجات والمخازن", fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
                 )
 
                 // Tab 3: Reports & Accounts
@@ -121,15 +151,7 @@ fun MainScreen(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
                     icon = { Icon(Icons.Default.BarChart, contentDescription = "التقارير") },
-                    label = { Text("التقارير المالية", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
-                )
-
-                // Tab 4: AI Advisor
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.AutoAwesome, contentDescription = "المستشار الذكي") },
-                    label = { Text("المستشار الذكي", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                    label = { Text("التقارير المالية", fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
                 )
             }
         }
@@ -187,7 +209,7 @@ fun BackupRestoreDialog(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Text(
-                    text = "⚙️ حماية البيانات الفائقة وعمل نسخة احتياطية",
+                    text = "حماية البيانات الفائقة وعمل نسخة احتياطية",
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -346,7 +368,7 @@ fun BackupRestoreDialog(
     if (showConfirmRestoreWarning) {
         AlertDialog(
             onDismissRequest = { showConfirmRestoreWarning = false },
-            title = { Text("⚠️ تحذير شديد الخطورة", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+            title = { Text("تحذير شديد الخطورة", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
             text = { Text("هل أنت متأكد؟ هذه الخطوة ستقوم بمسح كامل لجميع المنتجات والديون والبيوعات الحالية في الهاتف وتعويضها بالكامل بما في الكود!") },
             confirmButton = {
                 Button(
@@ -358,10 +380,10 @@ fun BackupRestoreDialog(
                             val success = viewModel.importEncryptedBackup(inputRestoreString)
                             isRestoringState = false
                             if (success) {
-                                Toast.makeText(context, "🎉 عظيم! تم استعادة كامل البيانات والمبيعات بنجاح التام!", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "تم استعادة كامل البيانات والمبيعات بنجاح التام!", Toast.LENGTH_LONG).show()
                                 onDismiss()
                             } else {
-                                Toast.makeText(context, "⚠️ فشلت الاستعادة. الكود تالف أو تم تعديله وغير متطابق.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "فشلت الاستعادة. الكود تالف أو تم تعديله وغير متطابق.", Toast.LENGTH_LONG).show()
                             }
                         }
                     }
