@@ -521,10 +521,11 @@ fun AddEditProductDialog(
                 Box(modifier = Modifier.fillMaxSize()) {
                     CameraScannerView(
                         viewModel = viewModel,
-                        onBarcodeDetected = { code ->
+                        onBarcodeDetected = { code, onComplete ->
                             barcode = code
                             viewModel.playBeep()
                             showCameraScanDialog = false
+                            onComplete(true)
                         }
                     )
 

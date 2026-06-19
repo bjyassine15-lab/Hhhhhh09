@@ -118,28 +118,21 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
      * Handle scan barcode event on POS screen
      */
     fun scanProductBarcode(barcode: String, onMatched: (Product) -> Unit = {}, onNotFound: (String) -> Unit = {}) {
-        val now = System.currentTimeMillis()
-        // If it's the same barcode within 3 seconds, ignore it to prevent duplicating scans
-        if (barcode == lastScannedBarcode && (now - lastScannedTime) < 3000) {
-            return
-        }
-
-        lastScannedBarcode = barcode
-        lastScannedTime = now
-
         viewModelScope.launch {
             val product = withContext(Dispatchers.IO) {
                 posDao.getProductByBarcode(barcode)
             }
             if (product != null) {
-                // Play feedback sound
+                // Play confirmation beep tone ONLY on successful SQLite lookup
                 playBeep()
                 
-                // Add to cart state
+                // Atomically update state flow / cart
                 addToCart(product)
                 
+                // Notify UI state successful matching
                 onMatched(product)
             } else {
+                // Notify UI not found barcode
                 onNotFound(barcode)
             }
         }

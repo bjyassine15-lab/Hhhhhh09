@@ -77,7 +77,7 @@ private fun isValidBarcode(code: String): Boolean {
 fun CameraScannerView(
     viewModel: PosViewModel,
     modifier: Modifier = Modifier,
-    onBarcodeDetected: (String) -> Unit
+    onBarcodeDetected: (String, (Boolean) -> Unit) -> Unit
 ) {
     val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
 
@@ -125,7 +125,7 @@ fun CameraScannerView(
 
 @Composable
 fun CameraPreviewAndScanner(
-    onBarcodeDetected: (String) -> Unit,
+    onBarcodeDetected: (String, (Boolean) -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -148,29 +148,24 @@ fun CameraPreviewAndScanner(
     }
     val scanner = remember { BarcodeScanning.getClient(options) }
 
-    // Professional, crisp beep generator modeled after professional checkout counters
-    val toneGenerator = remember {
-        try {
-            ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-        } catch (e: Exception) {
-            Log.e("CameraPreviewAndScanner", "Failed to initialize ToneGenerator", e)
-            null
-        }
-    }
+    // Atomic Processing Lock so that we never send scans concurrently
+    val isProcessing = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
-    // 2-second cooldown delay to prevent crazy duplicated scans (multi-scan)
-    val lastScanTime = remember { java.util.concurrent.atomic.AtomicLong(0L) }
-    val cooldownMs = 2000L
+    // 1.5 seconds local scan cooldown for the EXACT same barcode
+    var lastScannedCode by remember { mutableStateOf<String?>(null) }
+    var lastScannedTime by remember { mutableLongStateOf(0L) }
+    val cooldownMs = 1500L
+
+    // Buffer clearing function as requested
+    fun clearBarcodeBuffer() {
+        Log.d("BarcodeProcessor", "Clearing scanner buffer. Ready for next scan!")
+        isProcessing.set(false)
+    }
 
     DisposableEffect(Unit) {
         onDispose {
             cameraExecutor.shutdown()
             scanner.close()
-            try {
-                toneGenerator?.release()
-            } catch (e: Exception) {
-                Log.e("CameraPreviewAndScanner", "Failed to release ToneGenerator", e)
-            }
         }
     }
 
@@ -210,9 +205,8 @@ fun CameraPreviewAndScanner(
                             imageProxy.imageInfo.rotationDegrees
                         )
 
-                        val now = System.currentTimeMillis()
-                        // Ignore frame completely if inside cooldown
-                        if (now - lastScanTime.get() < cooldownMs) {
+                        // 1. Check Atomic Processing Lock
+                        if (isProcessing.get()) {
                             imageProxy.close()
                             return@setAnalyzer
                         }
@@ -222,20 +216,28 @@ fun CameraPreviewAndScanner(
                                 for (barcode in barcodes) {
                                     val code = barcode.rawValue
                                     if (!code.isNullOrEmpty() && isValidBarcode(code)) {
-                                        val currentTime = System.currentTimeMillis()
-                                        if (currentTime - lastScanTime.get() >= cooldownMs) {
-                                            lastScanTime.set(currentTime)
-                                            
-                                            // Professional high-pitched beep tone confirmation
-                                            try {
-                                                toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, 150)
-                                            } catch (e: Exception) {
-                                                Log.e("CameraPreviewAndScanner", "Failed to play beep", e)
-                                            }
-
-                                            onBarcodeDetected(code)
+                                        val now = System.currentTimeMillis()
+                                        
+                                        // 2. Cooldown check per unique barcode (1.5 seconds)
+                                        if (code == lastScannedCode && (now - lastScannedTime < cooldownMs)) {
+                                            break
                                         }
-                                        break // Only emit first validated barcode in frame
+
+                                        // 3. Atomically acquire scanning lock to run "One Scan = One Action"
+                                        if (isProcessing.compareAndSet(false, true)) {
+                                            // Handle barcode with callback as requested (Check -> Add -> Buffer Clear -> Cooldown)
+                                            onBarcodeDetected(code) { isSuccess ->
+                                                if (isSuccess) {
+                                                    lastScannedCode = code
+                                                    lastScannedTime = System.currentTimeMillis()
+                                                    clearBarcodeBuffer()
+                                                } else {
+                                                    // Immediately reset lock on error/failure
+                                                    isProcessing.set(false)
+                                                }
+                                            }
+                                        }
+                                        break // Only process first valid barcode found in this frame
                                     }
                                 }
                             }

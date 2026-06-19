@@ -77,15 +77,17 @@ fun PosScreen(
                     CameraScannerView(
                         viewModel = viewModel,
                         modifier = Modifier.fillMaxSize(),
-                        onBarcodeDetected = { barcode ->
+                        onBarcodeDetected = { barcode, onComplete ->
                             viewModel.scanProductBarcode(
                                 barcode = barcode,
                                 onMatched = { product ->
-                                    Toast.makeText(context, "${product.name} تمت إضافته للسلة بنجاح ✅", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "🛒 ${product.name} تمت إضافته بنجاح", Toast.LENGTH_SHORT).show()
+                                    onComplete(true)
                                 },
                                 onNotFound = { badBarcode ->
                                     unknownBarcode = badBarcode
                                     showScanErrorDialog = true
+                                    onComplete(false)
                                 }
                             )
                         }
@@ -183,15 +185,17 @@ fun PosScreen(
                     CameraScannerView(
                         viewModel = viewModel,
                         modifier = Modifier.fillMaxSize(),
-                        onBarcodeDetected = { barcode ->
+                        onBarcodeDetected = { barcode, onComplete ->
                             viewModel.scanProductBarcode(
                                 barcode = barcode,
                                 onMatched = { product ->
-                                    Toast.makeText(context, "${product.name} تمت إضافته للسلة بنجاح ✅", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "🛒 ${product.name} تمت إضافته بنجاح", Toast.LENGTH_SHORT).show()
+                                    onComplete(true)
                                 },
                                 onNotFound = { badBarcode ->
                                     unknownBarcode = badBarcode
                                     showScanErrorDialog = true
+                                    onComplete(false)
                                 }
                             )
                         }
