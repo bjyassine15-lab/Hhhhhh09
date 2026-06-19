@@ -8,6 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -202,25 +204,60 @@ fun StatCard(
 fun InvoicesHistoryTab(viewModel: PosViewModel) {
     val invoicesWithItems by viewModel.allInvoices.collectAsState()
     var selectedInvoiceForDetail by remember { mutableStateOf<InvoiceWithItems?>(null) }
+    
+    // Filter status index: 0 = الكل, 1 = نقداً (كاش), 2 = كريدي (ديون)
+    var filterIndex by remember { mutableIntStateOf(0) }
+    val filterTitles = listOf("الكل", "نقداً (كاش)", "كريدي (ديون)")
 
-    if (invoicesWithItems.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                "لا توجد فواتير تم بيعها بعد.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+    val filteredInvoices = remember(invoicesWithItems, filterIndex) {
+        when (filterIndex) {
+            1 -> invoicesWithItems.filter { !it.invoice.isDebt }
+            2 -> invoicesWithItems.filter { it.invoice.isDebt }
+            else -> invoicesWithItems
         }
-    } else {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(
+            selectedTabIndex = filterIndex,
+            modifier = Modifier.fillMaxWidth(),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
         ) {
-            items(invoicesWithItems, key = { it.invoice.id }) { item ->
-                InvoiceRow(
-                    invoiceWithItems = item,
-                    onClick = { selectedInvoiceForDetail = item }
+            filterTitles.forEachIndexed { index, title ->
+                Tab(
+                    selected = filterIndex == index,
+                    onClick = { filterIndex = index },
+                    text = {
+                        Text(
+                            text = title,
+                            fontSize = 12.sp,
+                            fontWeight = if (filterIndex == index) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 )
+            }
+        }
+
+        if (filteredInvoices.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    text = "لا توجد فواتير مطابقة لهذا الفلتر بعد.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                items(filteredInvoices, key = { it.invoice.id }) { item ->
+                    InvoiceRow(
+                        invoiceWithItems = item,
+                        onClick = { selectedInvoiceForDetail = item }
+                    )
+                }
             }
         }
     }
@@ -746,6 +783,12 @@ fun CustomerTransactionsDialog(
     val paymentsFlow = remember(customer.id) { viewModel.getDebtPaymentsForCustomer(customer.id) }
     val payments by paymentsFlow.collectAsState(initial = emptyList())
 
+    // Direct fetch of customer's unpaid invoices
+    val allInvoices by viewModel.allInvoices.collectAsState()
+    val unpaidInvoices = remember(allInvoices, customer.id) {
+        allInvoices.filter { it.invoice.isDebt && it.invoice.customerId == customer.id }
+    }
+
     // Actions state
     var showAddPaymentDialog by remember { mutableStateOf(false) }
     var showAddManualDebtDialog by remember { mutableStateOf(false) }
@@ -757,13 +800,15 @@ fun CustomerTransactionsDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
+                .fillMaxWidth(0.95f)
+                .padding(vertical = 12.dp)
+                .heightIn(max = 520.dp),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
                 Text(
@@ -797,7 +842,7 @@ fun CustomerTransactionsDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Action buttons side-by-side
                 Row(
@@ -808,7 +853,8 @@ fun CustomerTransactionsDialog(
                     Button(
                         onClick = { showAddPaymentDialog = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(Icons.Default.PriceCheck, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -819,7 +865,8 @@ fun CustomerTransactionsDialog(
                     Button(
                         onClick = { showAddManualDebtDialog = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -829,11 +876,95 @@ fun CustomerTransactionsDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Historic Payments title
+                // 1. Unpaid credit invoices causing this debt
                 Text(
-                    text = "سجل التسديدات والمبالغ المدفوعة:",
+                    text = "الفواتير غير المدفوعة (الكريدي المفرّق):",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.error
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                if (unpaidInvoices.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("لا توجد فواتير معلقة حالياً.", fontSize = 11.sp, color = Color.Gray)
+                    }
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        unpaidInvoices.forEach { item ->
+                            val invSdf = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
+                            val invDate = invSdf.format(Date(item.invoice.timestamp))
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "رقم الفاتورة: ${item.invoice.invoiceNumber}", 
+                                        fontSize = 12.sp, 
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Text(
+                                        text = "بتاريخ: $invDate", 
+                                        fontSize = 10.sp, 
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (item.items.isNotEmpty()) {
+                                        val itemsSummary = item.items.joinToString(", ") { "${it.productName} (x${it.quantity})" }
+                                        Text(
+                                            text = "البضائع: $itemsSummary",
+                                            fontSize = 9.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = String.format("%.2f د.ت", item.invoice.totalAmount),
+                                        color = MaterialTheme.colorScheme.error,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (item.invoice.paidAmount > 0) {
+                                        Text(
+                                            text = "مدفوع جزئي: " + String.format("%.2f", item.invoice.paidAmount),
+                                            color = Color(0xFF1B5E20),
+                                            fontSize = 8.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // 2. Settlement payments list
+                Text(
+                    text = "سجل التنزيلات والتسديدات السابقة:",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = Color(0xFF1B5E20)
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -842,33 +973,33 @@ fun CustomerTransactionsDialog(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(100.dp),
+                            .padding(vertical = 8.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(12.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("لا يوجد دفعات مسددة بعد.", fontSize = 12.sp, color = Color.Gray)
+                        Text("لا يوجد دفعات مسددة بعد.", fontSize = 11.sp, color = Color.Gray)
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false)
-                            .heightIn(max = 140.dp),
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(payments) { payment ->
-                            val pSdf = SimpleDateFormat("yyyy/MM/dd", Locale.getDefault())
+                        payments.forEach { payment ->
+                            val pSdf = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
                             val payDate = pSdf.format(Date(payment.timestamp))
 
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                                     .padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
-                                    Text("دفع نقدي: ${payment.note ?: ' '}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                    Text(payDate, fontSize = 9.sp, color = Color.Gray)
+                                    Text("تسديد نقدي: ${payment.note ?: "بدون ملاحظة"}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("بتاريخ: $payDate", fontSize = 9.sp, color = Color.Gray)
                                 }
                                 Text("- " + String.format("%.2f د.ت", payment.amountPaid), color = Color(0xFF1B5E20), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
@@ -882,7 +1013,7 @@ fun CustomerTransactionsDialog(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("إغلاق")
+                    Text("إغلاق وإخفاء التقرير")
                 }
             }
         }
