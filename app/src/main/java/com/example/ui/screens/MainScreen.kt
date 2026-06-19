@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -56,6 +57,27 @@ fun MainScreen(viewModel: PosViewModel) {
                     )
                 },
                 actions = {
+                    // "تبديل المظهر الليلي والنهاري" Switcher Button
+                    val isDarkThemeNow = isSystemInDarkTheme()
+                    IconButton(
+                        onClick = {
+                            val nextNightMode = if (isDarkThemeNow) {
+                                androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO
+                            } else {
+                                androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_YES
+                            }
+                            val sharedPrefs = context.getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE)
+                            sharedPrefs.edit().putInt("night_mode_state", nextNightMode).apply()
+                            androidx.appcompat.app.AppCompatDelegate.setDefaultNightMode(nextNightMode)
+                        }
+                    ) {
+                        Icon(
+                            imageVector = if (isDarkThemeNow) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = "تبديل المظهر",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
                     // "إعدادات الذكاء الاصطناعي" Button
                     IconButton(
                         onClick = { showSettingsDialog = true }

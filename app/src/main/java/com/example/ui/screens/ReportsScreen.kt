@@ -365,14 +365,35 @@ fun InvoiceDetailDialog(
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                Text(
-                    text = "تفاصيل الفاتورة",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                val dialogContext = LocalContext.current
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center
-                )
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            com.example.ui.util.InvoiceShareHelper.shareInvoiceAsPdf(dialogContext, invoiceWithItems)
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "مشاركة الفاتورة كـ PDF",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Text(
+                        text = "تفاصيل الفاتورة",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.size(48.dp))
+                }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
