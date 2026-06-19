@@ -87,18 +87,18 @@ fun CameraScannerView(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier) {
         if (cameraPermissionState.status.isGranted) {
             CameraPreviewAndScanner(
                 onBarcodeDetected = onBarcodeDetected,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.matchParentSize()
             )
             // Beautiful scanner overlay targeting/aiming window
-            ScannerOverlay(modifier = Modifier.fillMaxSize())
+            ScannerOverlay(modifier = Modifier.matchParentSize())
         } else {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .matchParentSize()
                     .background(Color.Black.copy(alpha = 0.85f))
                     .padding(24.dp),
                 verticalArrangement = Arrangement.Center,

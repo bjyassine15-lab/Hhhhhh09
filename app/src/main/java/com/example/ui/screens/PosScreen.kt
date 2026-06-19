@@ -33,6 +33,8 @@ import com.example.ui.components.CameraScannerView
 import com.example.ui.viewmodel.PosViewModel
 import kotlinx.coroutines.launch
 import java.io.File
+import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.Dimension
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,22 +63,36 @@ fun PosScreen(
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
     if (isLandscape) {
-        Row(
+        ConstraintLayout(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Section 1 Left: Camera Scanner (Continuous Scanning & 2s cooldown)
+            val (cameraRef, cartRef) = createRefs()
+
             if (isCameraVisible) {
+                // Section 1 Left: Camera Scanner (Continuous Scanning & 2s cooldown)
+                // Restrained strictly below top bar inside layout bounds, clipped with corner radius
                 Box(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .background(Color.Black)
+                        .constrainAs(cameraRef) {
+                            top.linkTo(parent.top)
+                            bottom.linkTo(parent.bottom)
+                            start.linkTo(parent.start)
+                            end.linkTo(cartRef.start, margin = 8.dp)
+                            width = Dimension.percent(0.42f)
+                            height = Dimension.fillToConstraints
+                        }
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
                 ) {
                     CameraScannerView(
                         viewModel = viewModel,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .aspectRatio(4f / 3f, matchHeightConstraintsFirst = true),
                         onBarcodeDetected = { barcode, onComplete ->
                             viewModel.scanProductBarcode(
                                 barcode = barcode,
@@ -123,8 +139,19 @@ fun PosScreen(
             // Section 2 Right: Cart List / checkout
             Column(
                 modifier = Modifier
-                    .weight(if (isCameraVisible) 1.2f else 2f)
-                    .fillMaxHeight()
+                    .constrainAs(cartRef) {
+                        top.linkTo(parent.top)
+                        bottom.linkTo(parent.bottom)
+                        if (isCameraVisible) {
+                            start.linkTo(cameraRef.end)
+                            width = Dimension.fillToConstraints
+                        } else {
+                            start.linkTo(parent.start)
+                            width = Dimension.fillToConstraints
+                        }
+                        end.linkTo(parent.end)
+                        height = Dimension.fillToConstraints
+                    }
                     .background(MaterialTheme.colorScheme.surface)
             ) {
                 CartHeader(
@@ -169,18 +196,29 @@ fun PosScreen(
             }
         }
     } else {
-        Column(
+        ConstraintLayout(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // SECTION 1: Camera Preview on Portrait (at top, weight 0.40f)
+            val (cameraRef, cartRef) = createRefs()
+
             if (isCameraVisible) {
+                // Section 1 Top: Camera Scanner (Continuous Scanning & 1.5s cooldown)
+                // Restrained strictly below top bar inside layout bounds, clipped with corner radius
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(0.40f)
-                        .background(Color.Black)
+                        .constrainAs(cameraRef) {
+                            top.linkTo(parent.top)
+                            start.linkTo(parent.start)
+                            end.linkTo(parent.end)
+                            width = Dimension.fillToConstraints
+                        }
+                        .aspectRatio(4f / 3f) // Maintains a crisp, constant 4:3 aspect ratio
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center
                 ) {
                     CameraScannerView(
                         viewModel = viewModel,
@@ -231,8 +269,18 @@ fun PosScreen(
             // SECTION 2: Cart List / checkout
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(if (isCameraVisible) 0.60f else 1f)
+                    .constrainAs(cartRef) {
+                        if (isCameraVisible) {
+                            top.linkTo(cameraRef.bottom, margin = 8.dp)
+                        } else {
+                            top.linkTo(parent.top)
+                        }
+                        bottom.linkTo(parent.bottom)
+                        start.linkTo(parent.start)
+                        end.linkTo(parent.end)
+                        width = Dimension.fillToConstraints
+                        height = Dimension.fillToConstraints
+                    }
                     .background(MaterialTheme.colorScheme.surface)
             ) {
                 CartHeader(
@@ -492,24 +540,39 @@ fun DebtSettlementDialog(
     onConfirmNewCustomer: (String, String?) -> Unit,
     onConfirmExistingCustomer: (Long) -> Unit
 ) {
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
     var tabIndex by remember { mutableIntStateOf(0) }
     var newCustomerName by remember { mutableStateOf("") }
     var newCustomerPhone by remember { mutableStateOf("") }
 
-    var expandedDropdown by remember { mutableStateOf(false) }
     var selectedCustomer by remember { mutableStateOf<Customer?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    val filteredCustomers = remember(customers, searchQuery) {
+        if (searchQuery.isBlank()) {
+            customers
+        } else {
+            customers.filter {
+                it.name.contains(searchQuery, ignoreCase = true) ||
+                (it.phone?.contains(searchQuery) == true)
+            }
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp)
+                .fillMaxWidth(if (isLandscape) 0.85f else 0.95f)
+                .padding(vertical = if (isLandscape) 4.dp else 12.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(if (isLandscape) 12.dp else 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -519,82 +582,194 @@ fun DebtSettlementDialog(
                     color = MaterialTheme.colorScheme.primary
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Selector Tabs
                 TabRow(
                     selectedTabIndex = tabIndex,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(38.dp)
                 ) {
                     Tab(
                         selected = tabIndex == 0,
                         onClick = { tabIndex = 0 },
-                        text = { Text("عميل مسجل", fontSize = 13.sp) }
+                        text = { Text("عميل مسجل", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                     )
                     Tab(
                         selected = tabIndex == 1,
                         onClick = { tabIndex = 1 },
-                        text = { Text("عميل جديد", fontSize = 13.sp) }
+                        text = { Text("عميل جديد", fontSize = 12.sp, fontWeight = FontWeight.Bold) }
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 if (tabIndex == 0) {
-                    // --- EXISTING CUSTOMER FLOW ---
+                    // --- EXISTING CUSTOMER FLOW (Search + Scrollable LazyColumn) ---
                     if (customers.isEmpty()) {
-                        Text(
-                            text = "لا يوجد عملاء مسجلين حالياً. يرجى إنشاء عميل جديد.",
-                            textAlign = TextAlign.Center,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 120.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "لا يوجد عملاء مسجلين حالياً. يرجى إنشاء عميل جديد.",
+                                textAlign = TextAlign.Center,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     } else {
-                        Box(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            // Professional Live Search Bar
                             OutlinedTextField(
-                                value = selectedCustomer?.name ?: "إختر العميل...",
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text("اختر عميل") },
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("بحث عن اسم العميل أو الهاتف...", fontSize = 12.sp) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "بحث",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
                                 trailingIcon = {
-                                    IconButton(onClick = { expandedDropdown = !expandedDropdown }) {
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(onClick = { searchQuery = "" }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "مسح", modifier = Modifier.size(18.dp))
+                                        }
                                     }
                                 },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { expandedDropdown = !expandedDropdown }
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                ),
+                                modifier = Modifier.fillMaxWidth().height(48.dp)
                             )
 
-                            DropdownMenu(
-                                expanded = expandedDropdown,
-                                onDismissRequest = { expandedDropdown = false },
-                                modifier = Modifier.fillMaxWidth(0.9f)
+                            // Modern elegant scrollable list (RecyclerView style)
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = if (isLandscape) 130.dp else 240.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                                    .padding(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                customers.forEach { customer ->
-                                    DropdownMenuItem(
-                                        text = { Text(customer.name) },
-                                        onClick = {
-                                            selectedCustomer = customer
-                                            expandedDropdown = false
+                                items(filteredCustomers) { customer ->
+                                    val isSelected = selectedCustomer?.id == customer.id
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { selectedCustomer = customer }
+                                            .padding(horizontal = 2.dp, vertical = 2.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isSelected) {
+                                                MaterialTheme.colorScheme.primaryContainer
+                                            } else {
+                                                MaterialTheme.colorScheme.surface
+                                            }
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            width = 1.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Avatar circle
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(32.dp)
+                                                    .background(
+                                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                                                        shape = RoundedCornerShape(16.dp)
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = customer.name.firstOrNull()?.toString() ?: "?",
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(10.dp))
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = customer.name,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (!customer.phone.isNullOrEmpty()) {
+                                                    Text(
+                                                        text = "📞 " + customer.phone,
+                                                        fontSize = 10.sp,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+
+                                            if (isSelected) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CheckCircle,
+                                                    contentDescription = "Selected",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
                                         }
-                                    )
+                                    }
+                                }
+
+                                if (filteredCustomers.isEmpty()) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "🔍 لا توجد نتائج مطابقة لبحثك",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontSize = 12.sp,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = onDismiss) {
-                            Text("إلغاء")
+                            Text("إلغاء", fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -603,9 +778,12 @@ fun DebtSettlementDialog(
                                     onConfirmExistingCustomer(it.id)
                                 }
                             },
-                            enabled = selectedCustomer != null
+                            enabled = selectedCustomer != null,
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("تسجيل الدين")
+                            Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("تسجيل الدين ككريدي", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -614,30 +792,35 @@ fun DebtSettlementDialog(
                     OutlinedTextField(
                         value = newCustomerName,
                         onValueChange = { newCustomerName = it },
-                        label = { Text("اسم العميل الجديد") },
+                        label = { Text("اسم العميل الجديد", fontSize = 12.sp) },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(8.dp),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     OutlinedTextField(
                         value = newCustomerPhone,
                         onValueChange = { newCustomerPhone = it },
-                        label = { Text("الهاتف (اختياري)") },
+                        label = { Text("الهاتف (اختياري)", fontSize = 12.sp) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(8.dp),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = onDismiss) {
-                            Text("إلغاء")
+                            Text("إلغاء", fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Button(
@@ -649,9 +832,12 @@ fun DebtSettlementDialog(
                                     )
                                 }
                             },
-                            enabled = newCustomerName.trim().isNotEmpty()
+                            enabled = newCustomerName.trim().isNotEmpty(),
+                            shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("إنشاء وتسجيل")
+                            Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("إنشاء وتسجيل الدين", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

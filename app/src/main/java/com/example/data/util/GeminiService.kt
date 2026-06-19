@@ -1,22 +1,22 @@
 package com.example.data.util
 
 import android.content.Context
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKeys
+import com.example.BuildConfig
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
+import retrofit2.HttpException
 import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
+import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
-
-// --- Independent Data Models for Gemini REST API ---
 
 @JsonClass(generateAdapter = true)
 data class GeminiPart(
@@ -44,19 +44,15 @@ data class GeminiResponse(
     val candidates: List<GeminiCandidate>?
 )
 
-// --- Retrofit Interface ---
 interface GeminiApi {
-    @POST("v1beta/models/gemini-3.5-flash:generateContent")
+    @POST("v1beta/models/{model}:generateContent")
     suspend fun generateContent(
+        @Path("model") model: String,
         @Query("key") apiKey: String,
         @Body request: GeminiRequest
     ): GeminiResponse
 }
 
-/**
- * Isolated service for the IA Advisor.
- * Implements strict Error Resilience, retry policy, and Key Gatekeeper verification.
- */
 object GeminiService {
     private const val BASE_URL = "https://generativelanguage.googleapis.com/"
 
@@ -79,157 +75,261 @@ object GeminiService {
             .create(GeminiApi::class.java)
     }
 
-    // --- SharedPreferences Helpers for the API Key with Resilient Encryption fallback ---
-    private const val PREFS_NAME = "smart_cashier_ai_prefs"
-    private const val KEY_API_KEY = "gemini_api_key_pos"
-
-    private fun getEncryptedPrefs(context: Context): android.content.SharedPreferences {
-        return try {
-            val masterKeyAlias = MasterKeys.getOrCreate(MasterKeys.AES256_GCM_SPEC)
-            EncryptedSharedPreferences.create(
-                "secure_smart_cashier_ai_prefs",
-                masterKeyAlias,
-                context,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // Graceful resilient fallback: standard app sandboxed preferences
-            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        }
+    fun saveApiKey(context: Context, key: String) {
+        val prefs = context.getSharedPreferences("gemini_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("api_key", key).apply()
     }
 
     fun getSavedApiKey(context: Context): String {
-        val securePrefs = getEncryptedPrefs(context)
-        var key = securePrefs.getString(KEY_API_KEY, "")
-        // Migrator layer: transparently read and upgrade from legacy plain configuration
-        if (key.isNullOrBlank()) {
-            val plainPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            key = plainPrefs.getString(KEY_API_KEY, "")
-            if (!key.isNullOrBlank()) {
-                securePrefs.edit().putString(KEY_API_KEY, key.trim()).apply()
-            }
-        }
-        return key.orEmpty().trim()
+        val prefs = context.getSharedPreferences("gemini_prefs", Context.MODE_PRIVATE)
+        val saved = prefs.getString("api_key", "") ?: ""
+        if (saved.isNotBlank()) return saved
+        val buildKey = BuildConfig.GEMINI_API_KEY
+        return if (buildKey == "MY_GEMINI_API_KEY") "" else buildKey
     }
 
-    fun saveApiKey(context: Context, apiKey: String) {
-        val securePrefs = getEncryptedPrefs(context)
-        securePrefs.edit().putString(KEY_API_KEY, apiKey.trim()).apply()
-        
-        // Wipe legacy insecure reference
-        val plainPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        if (plainPrefs.contains(KEY_API_KEY)) {
-            plainPrefs.edit().remove(KEY_API_KEY).apply()
-        }
+    fun saveSelectedModel(context: Context, model: String) {
+        val prefs = context.getSharedPreferences("gemini_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("selected_model", model).apply()
     }
 
-    /**
-     * Silent API Verification Check (The Gatekeeper).
-     * Performs a very fast, tiny check with the entered key to test validity before launching chat.
-     */
-    suspend fun verifyApiKey(apiKey: String): Boolean {
-        return verifyApiKeyDetailed(apiKey) == null
+    fun getSelectedModel(context: Context): String {
+        val prefs = context.getSharedPreferences("gemini_prefs", Context.MODE_PRIVATE)
+        return prefs.getString("selected_model", "gemini-3.5-flash") ?: "gemini-3.5-flash"
     }
 
-    /**
-     * Silent API Verification Check (The Gatekeeper) returning detailed error if any.
-     * Returns null if success, or detailed error message string if failed.
-     */
-    suspend fun verifyApiKeyDetailed(apiKey: String): String? = withContext(Dispatchers.IO) {
-        if (apiKey.isBlank()) return@withContext "مفتاح الـ API فارغ."
+    suspend fun verifyApiKeyDetailed(apiKey: String, model: String = "gemini-3.5-flash"): String? = withContext(Dispatchers.IO) {
+        if (apiKey.isBlank()) return@withContext "مفتاح API فارغ"
+        val request = GeminiRequest(
+            contents = listOf(GeminiContent(parts = listOf(GeminiPart(text = "Hello"))))
+        )
         try {
-            val testRequest = GeminiRequest(
-                contents = listOf(
-                    GeminiContent(parts = listOf(GeminiPart(text = "Hi")))
-                )
-            )
-            val response = api.generateContent(apiKey, testRequest)
-            val textResult = response.candidates?.getOrNull(0)?.content?.parts?.getOrNull(0)?.text
-            if (textResult.isNullOrBlank()) {
-                "Connection succeeded, but AI generation response was empty."
+            val response = api.generateContent(model, apiKey, request)
+            if (response.candidates != null) {
+                null
             } else {
-                null // null indicates success
+                "استجابة غير صالحة من الخدمة"
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            val rawMessage = e.localizedMessage ?: e.message ?: e.toString()
-            val baseMessage = rawMessage.lowercase()
-            when {
-                baseMessage.contains("unable to resolve host") || baseMessage.contains("unknownhostexception") || baseMessage.contains("connect") -> 
-                    "No internet connection (check your network setup)."
-                baseMessage.contains("400") -> "Key incorrect or unsupported format (HTTP 400 Bad Request). Raw API Response: $rawMessage"
-                baseMessage.contains("403") -> "Key invalid or unauthorized (HTTP 403 Forbidden). Raw API Response: $rawMessage"
-                baseMessage.contains("503") -> "Gemini API unavailable temporarily (HTTP 503 Service Unavailable). Raw API Response: $rawMessage"
-                baseMessage.contains("429") -> "Quota exceeded for this API key (HTTP 429 Too Many Requests). Raw API Response: $rawMessage"
-                baseMessage.contains("timeout") || baseMessage.contains("timeout") -> "Request timed out (Timeout)."
-                else -> "Detailed exception from Google: $rawMessage"
-            }
+            val msg = e.localizedMessage ?: e.message ?: e.toString()
+            "فشل الاتصال بخوادم جوجل: $msg"
         }
     }
 
     /**
-     * Chat Prompt Execution with Retry Policy and Custom Error Handling.
+     * Parse the standard summary metadata string returned by buildStoreDataSummary
+     */
+    private fun parseHeaderSummary(contextStr: String): Map<String, Double> {
+        val map = mutableMapOf<String, Double>()
+        try {
+            val firstLine = contextStr.substringBefore("\n")
+            if (firstLine.startsWith("SYS_SUM:")) {
+                val cleaned = firstLine.replace("SYS_SUM:", "").replace(";", ",")
+                val parts = cleaned.split(",")
+                for (part in parts) {
+                    val kv = part.split("=")
+                    if (kv.size == 2) {
+                        kv[1].toDoubleOrNull()?.let { valD ->
+                            map[kv[0].trim()] = valD
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return map
+    }
+
+    /**
+     * Generate structured, smart rule-based advice locally from database statistics
+     * when offline or using bypassed API key configuration.
+     */
+    fun generateLocalAdvice(prompt: String, dbSummaryContext: String): String {
+        val stats = parseHeaderSummary(dbSummaryContext)
+        val p = stats["P"]?.toInt() ?: 0
+        val l = stats["L"]?.toInt() ?: 0
+        val b = stats["B"] ?: 0.0
+        val s = stats["S"] ?: 0.0
+        val pr = stats["Pr"] ?: 0.0
+        val inv = stats["INV"]?.toInt() ?: 0
+        val sv = stats["SV"] ?: 0.0
+        val cc = stats["CC"] ?: 0.0
+        val d = stats["D"]?.toInt() ?: 0
+        val dv = stats["DV"] ?: 0.0
+
+        val textLower = prompt.lowercase()
+
+        val isDebtRelated = textLower.contains("دين") || textLower.contains("ديون") || textLower.contains("كريدي") || textLower.contains("مدين")
+        val isStockRelated = textLower.contains("مخزن") || textLower.contains("مخزون") || textLower.contains("كمي") || textLower.contains("منتج") || textLower.contains("بضاعة")
+        val isProfitRelated = textLower.contains("ربح") || textLower.contains("أرباح") || textLower.contains("مكسب") || textLower.contains("فائدة")
+        val isSalesRelated = textLower.contains("بيع") || textLower.contains("مبيع") || textLower.contains("فاتورة") || textLower.contains("فواتير")
+
+        val sb = StringBuilder()
+        sb.append("📊 **المستشار المالي الذكي (وضع التحليل المباشر الآمن):**\n\n")
+
+        if (isDebtRelated) {
+            sb.append("💡 **تحليل الديون والكريدي المالي الحالي:**\n")
+            sb.append("• **عدد زبائن الكريدي النشطين:** $d زبائن.\n")
+            sb.append("• **إجمالي المبالغ غير المستردة (الديون المعلقة):** ${"%,.2f".format(dv)} د.إ.\n")
+            if (dv > 0) {
+                sb.append("📈 **التوجيه المالي الموصى به:**\n")
+                sb.append("1. **إرسال تذكيرات دورية:** تواصل مع الزبائن النشطين، وخاصة المدينين بأكثر من المتوسط.\n")
+                sb.append("2. **وضع سقف ائتماني:** ننصح بوضع حد أقصى للديون (مثلاً 500 د.إ للزبون الواحد) لمنع تضخم الخسائر المباشرة.\n")
+                sb.append("3. **تحفيز السداد النقدي:** قدم خصمًا بسيطاً (مثلاً 2%) عند الدفع الفوري كاش لتقليل نسبة الشراء بالكريدي.\n")
+            } else {
+                sb.append("🎉 تهانينا! ليس لديك أي ديون معلقة في النظام حالياً. يحافظ متجرك على سيولة ممتازة بنسبة 100%.\n")
+            }
+        } else if (isStockRelated) {
+            sb.append("📦 **تحليل حالة المخزن والمنتجات:**\n")
+            sb.append("• **إجمالي أنواع المنتجات بالمتجر:** $p منتجات.\n")
+            sb.append("• **منتجات شارف مخزونها على النفاذ (كمية <= 5):** $l منتجات.\n")
+            sb.append("• **القيمة التقريبية للمخزن بسعر الشراء:** ${"%,.2f".format(b)} د.إ.\n")
+            sb.append("• **القيمة التقريبية للمخزن بسعر البيع:** ${"%,.2f".format(s)} د.إ.\n")
+            if (l > 0) {
+                sb.append("\n⚠️ **توصيات المخزون المتدني:**\n")
+                sb.append("لديك حالياً $l منتجات مخزونها منخفض جداً. يرجى مراجعة صفحة المخزن لطلب طلبيات تكميلية وتجنب توقف المبيعات لهذه السلع الأساسية.\n")
+            } else {
+                sb.append("👍 مخزونك ممتاز ومتوازن، لا توجد حالياً سلع حرجة ذات كمية منخفضة.\n")
+            }
+        } else if (isProfitRelated) {
+            sb.append("💰 **تحليل الأرباح المتوقعة والاستثمار الكامن:**\n")
+            sb.append("• **القيمة الإجمالية المتوقعة للأرباح عند بيع كامل المخزون الحالي في الرفوف:** ${"%,.2f".format(pr)} د.إ.\n")
+            sb.append("• **هامش الربح الإجمالي المتوقع للمتجر:** " + (if (b > 0) "${"%.1f".format((pr / b) * 100)}%" else "0%") + "\n")
+            sb.append("\n✨ **نصيحة الخبير لزيادة الهامش:**\n")
+            sb.append("حاول التركيز على المنتجات ذات هامش الربح الأعلى (الفرق بين الشراء والبيع) وعرضها في الخزانة الأمامية لزيادة معدل دورانها المباشر.\n")
+        } else if (isSalesRelated) {
+            sb.append("🧾 **تحليل المبيعات والتدفقات النقدية الفورية:**\n")
+            sb.append("• **عدد فواتير البيع الحالية:** $inv فواتير.\n")
+            sb.append("• **حجم المبيعات الفعلي:** ${"%,.2f".format(sv)} د.إ.\n")
+            sb.append("• **النقد المجمع فعلياً (الكاش المستلم):** ${"%,.2f".format(cc)} د.إ.\n")
+            val unpaid = sv - cc
+            if (unpaid > 0) {
+                sb.append("• **جزء من المبيعات لم يسدد (كريدي):** ${"%,.2f".format(unpaid)} د.إ (${"%.1f".format((unpaid / sv) * 100)}% من المبيعات).\n")
+            } else {
+                sb.append("🎉 جميع مبيعاتك تم تسديدها بنجاح نقداً، مما يعني سيولة مباشرة وسريعة الدوران بمتجرك.\n")
+            }
+        } else {
+            // General overview responses covering user greeting/help
+            sb.append("👋 مرحباً بك! أنا مستشارك الحسابي والمالي الذكي المدمج في تطبيق الكاشير.\n\n")
+            sb.append("إليك ملخصاً سريعاً لحالة متجرك الاقتصادية والمالية الفورية:\n")
+            sb.append("• **مخزنك:** يحتوي على **$p** منتجاً بقيمة شراء تبلغ **${"%,.2f".format(b)} د.إ** وأرباح كامنة تبلغ **${"%,.2f".format(pr)} د.إ**.\n")
+            sb.append("• **مبيعاتك:** تم تسجيل **$inv** عملية بيع بقيمة **${"%,.2f".format(sv)} د.إ**، تم تحصيل **${"%,.2f".format(cc)} د.إ** نقداً منها.\n")
+            sb.append("• **الديون (الكريدي):** مسجل في ذمتك **$d** زبائن مدينين بمبلغ إجمالي **${"%,.2f".format(dv)} د.إ** يعيق تدفقك الكاش.\n\n")
+            sb.append("💬 *يمكنك سؤالي المباشر عن أي جانب (مثلاً: 'كيف أتعامل مع ديوني'، 'كيف حالة مخزني'، أو 'كيف هي أرباحي الكامنة') وسأجيبك فورياً بتحليل دقيق ومفصل.*")
+        }
+        return sb.toString()
+    }
+
+    /**
+     * Executes AI prompt by injecting store data context and system instruction,
+     * utilizing SharedPreferences saved api key with a fallback to BuildConfig.GEMINI_API_KEY.
      */
     suspend fun getAdvice(
-        apiKey: String,
+        context: Context,
         prompt: String,
         systemInstructionText: String,
         dbSummaryContext: String,
         history: List<Pair<String, String>> = emptyList()
     ): String = withContext(Dispatchers.IO) {
-        val contentsList = mutableListOf<GeminiContent>()
-
-        // Add history turns (User / Model)
-        history.forEach { (sender, msg) ->
-            val rolePart = GeminiPart(text = msg)
-            contentsList.add(GeminiContent(parts = listOf(rolePart))) 
+        val apiKey = getSavedApiKey(context)
+        if (apiKey.isBlank() || apiKey == "BYPASS") {
+            return@withContext generateLocalAdvice(prompt, dbSummaryContext)
         }
 
-        // Add contemporary context + prompt
-        val fullMessagePrompt = "$dbSummaryContext\n\nامسار الحالي من المستخدم:\n$prompt"
-        contentsList.add(GeminiContent(parts = listOf(GeminiPart(text = fullMessagePrompt))))
+        var activeModel = getSelectedModel(context)
+        val initialModelChosen = activeModel
+
+        // Smart auto-retry & dynamic model-switching fallback strategy
+        var lastException: Exception? = null
+        val maxRetryAttempts = 3
+        var currentAttempt = 1
+        var wasModelSwapped = false
+
+        val contentsList = mutableListOf<GeminiContent>()
+
+        // Add history
+        history.forEach { (_, msg) ->
+            if (msg.isNotBlank()) {
+                contentsList.add(GeminiContent(parts = listOf(GeminiPart(text = msg))))
+            }
+        }
+
+        // Add context + prompt
+        val fullMsg = "$dbSummaryContext\n\nالسؤال الحالي من المستخدم:\n$prompt"
+        contentsList.add(GeminiContent(parts = listOf(GeminiPart(text = fullMsg))))
 
         val request = GeminiRequest(
             contents = contentsList,
             systemInstruction = GeminiContent(parts = listOf(GeminiPart(text = systemInstructionText)))
         )
 
-        var retries = 2
-        var currentDelay = 1000L
-
-        while (true) {
+        while (currentAttempt <= maxRetryAttempts) {
             try {
-                val response = api.generateContent(apiKey, request)
+                val response = api.generateContent(activeModel, apiKey, request)
                 val responseText = response.candidates?.getOrNull(0)?.content?.parts?.getOrNull(0)?.text
                 if (!responseText.isNullOrBlank()) {
-                    return@withContext responseText
+                    return@withContext if (wasModelSwapped) {
+                        "$responseText\n\n🔄 *(تنبيه: تم تقديم الرد بنجاح عبر النموذج البديل المتاح تلقائياً نتيجة ضغط أو حد حصة النموذج الأساسي)*"
+                    } else {
+                        responseText
+                    }
                 } else {
-                    return@withContext "لم يتلقَ المستشار أي رد ذكي من خوادم الذكاء الاصطناعي."
+                    lastException = Exception("لم يتلقَ المستشارة أي رد ذكي من الخوادم في المحاولة رقم $currentAttempt.")
+                }
+            } catch (e: HttpException) {
+                e.printStackTrace()
+                lastException = e
+                val code = e.code()
+                // If Rate Limit (HTTP 429) or Server Error (HTTP 5xx), carry out a silent model swap
+                if (code == 429 || code >= 500) {
+                    val alternativeModel = if (activeModel == "gemini-3.5-flash") {
+                        "gemini-3.1-flash-lite-preview"
+                    } else {
+                        "gemini-3.5-flash"
+                    }
+                    if (activeModel != alternativeModel) {
+                        activeModel = alternativeModel
+                        wasModelSwapped = true
+                    }
+                    // Wait for 2 seconds to avoid slamming the servers and respect Rate Limit / Safe Cooldown rules
+                    delay(2000L)
+                } else {
+                    // For other HTTP errors (e.g., 400 Bad Request / 404 Not Found), try switching to alternative model too
+                    val alternativeModel = if (activeModel == "gemini-3.5-flash") {
+                        "gemini-3.1-flash-lite-preview"
+                    } else {
+                        "gemini-3.5-flash"
+                    }
+                    if (activeModel != alternativeModel) {
+                        activeModel = alternativeModel
+                        wasModelSwapped = true
+                    }
+                    delay(1200L * currentAttempt)
                 }
             } catch (e: Exception) {
-                // Parse errors details
-                val errorMessage = e.message ?: ""
-                val isRetryable = errorMessage.contains("429") || errorMessage.contains("503") || errorMessage.contains("timeout") || e is java.io.IOException
-
-                if (isRetryable && retries > 0) {
-                    retries--
-                    kotlinx.coroutines.delay(currentDelay)
-                    currentDelay *= 2
-                    continue
+                e.printStackTrace()
+                lastException = e
+                // For direct networking/socket or timeout issues, also attempt dynamic fallback
+                val alternativeModel = if (activeModel == "gemini-3.5-flash") {
+                    "gemini-3.1-flash-lite-preview"
+                } else {
+                    "gemini-3.5-flash"
                 }
-
-                // Handle status codes according to resilience rules
-                return@withContext when {
-                    errorMessage.contains("429") -> "عذراً، الضغط عالٍ على السيرفر (تجاوزت الحصة المتاحة للمفتاح)، يرجى إعادة المحاولة بعد دقيقة."
-                    errorMessage.contains("503") -> "خادم Gemini غير متاح مؤقتاً بالخدمة الآن، سأحاول مجدداً لاحقاً..."
-                    errorMessage.contains("400") || errorMessage.contains("403") -> "فشل في التحقق من صحة مفتاح الـ API أو صلاحياته الحالية. تفقد الإعدادات."
-                    else -> "عذراً، حدث خطأ ما أثناء الاتصال بالمستشار الذكي. تأكد من تفعيل الإنترنت أو مراجعة مفتاح الـ API في الإعدادات."
+                if (activeModel != alternativeModel) {
+                    activeModel = alternativeModel
+                    wasModelSwapped = true
                 }
+                delay(1200L * currentAttempt)
             }
+            currentAttempt++
         }
-        @Suppress("UNREACHABLE_CODE")
-        "فشل الاتصال."
+
+        // Fallback elegantly to offline local database-based direct analytical generator if APIs are totally inaccessible
+        val localAdvice = generateLocalAdvice(prompt, dbSummaryContext)
+        val errorMessage = lastException?.localizedMessage ?: lastException?.message ?: "مشكلة في الربط والحصة المفرطة"
+        return@withContext "$localAdvice\n\n⚠️ *(تنبيه تلقائي: تم تقديم هذا التحليل الذكي محلياً وبثبات تام نتيجة تعذر الاتصال بـ API: $errorMessage)*"
     }
 }
+

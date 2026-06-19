@@ -474,9 +474,6 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun sendPromptToAi(promptText: String, context: Context, onComplete: () -> Unit = {}) {
-        val key = com.example.data.util.GeminiService.getSavedApiKey(context)
-        if (key.isBlank()) return
-
         val textCleaned = promptText.trim()
         if (textCleaned.isEmpty()) return
 
@@ -501,7 +498,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
 
             try {
                 val response = com.example.data.util.GeminiService.getAdvice(
-                    apiKey = key,
+                    context = context,
                     prompt = textCleaned,
                     systemInstructionText = systemInstructionText,
                     dbSummaryContext = dbSummaryContext,

@@ -9,33 +9,32 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
-
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme =
   darkColorScheme(
-    primary = Teal80,
-    secondary = TealGrey80,
-    tertiary = Mint80,
-    background = Color(0xFF121212),         // Deep gray background to avoid eye strain as requested
-    surface = Color(0xFF1E1E1E),            // Contrast surface for cards
-    onBackground = Color(0xFFE1E3E2),       // Light gray readable text
-    onSurface = Color(0xFFE1E3E2),
-    surfaceVariant = Color(0xFF2D3332),     // Accent panels
-    onSurfaceVariant = Color(0xFFBCC9C8)
+    primary = FinDarkPrimary,
+    secondary = FinDarkSecondary,
+    tertiary = FinDarkTertiary,
+    background = FinDarkBackground,         // Modern deep slate blue-gray
+    surface = FinDarkSurface,               // Cool metal gray cards
+    onBackground = Color(0xFFF8FAFC),       // Clean radiant off-white text
+    onSurface = Color(0xFFF8FAFC),
+    surfaceVariant = FinDarkSurfaceVariant,  // Premium dark accent panels
+    onSurfaceVariant = Color(0xFFCBD5E1)      // Readable secondary text
   )
 
 private val LightColorScheme =
   lightColorScheme(
-    primary = Teal40,
-    secondary = TealGrey40,
-    tertiary = Mint40,
-    background = Color(0xFFF9FBFB),        // Soft off-white clean background
-    surface = Color(0xFFFFFFFF),           // Pure white cards
-    onBackground = Color(0xFF191C1C),      // High-contrast dark text
-    onSurface = Color(0xFF191C1C),
-    surfaceVariant = Color(0xFFE0F2F1),    // Light teal variant for active components
-    onSurfaceVariant = Color(0xFF004D40)
+    primary = FinLightPrimary,
+    secondary = FinLightSecondary,
+    tertiary = FinLightTertiary,
+    background = FinLightBackground,        // Clean modern light gray-blue
+    surface = FinLightSurface,               // Polished white cards
+    onBackground = Color(0xFF0F172A),       // Sharp professional dark text
+    onSurface = Color(0xFF0F172A),
+    surfaceVariant = FinLightSurfaceVariant, // Light accent gray
+    onSurfaceVariant = Color(0xFF475569)     // Slate-cool secondary text
   )
 
 @Composable

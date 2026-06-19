@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand colors (Light Palette) -->
-    <color name="primary_color">#00796B</color>     <!-- Teal40 -->
-    <color name="secondary_color">#004D40</color>   <!-- TealGrey40 -->
-    <color name="background_color">#F9FBFB</color>  <!-- Soft off-white -->
+    <!-- Brand colors (Light Palette - Professional Bank Navy Blue) -->
+    <color name="primary_color">#0F4C81</color>     <!-- Classic Bank Navy Blue -->
+    <color name="secondary_color">#1E3D59</color>   <!-- Cool Steel Blue -->
+    <color name="background_color">#F8FAFC</color>  <!-- Slate off-white -->
     <color name="surface_color">#FFFFFF</color>     <!-- Pure white -->
-    <color name="text_color">#191C1C</color>        <!-- Dark gray/black -->
+    <color name="text_color">#0F172A</color>        <!-- Slate dark text -->
 </resources>

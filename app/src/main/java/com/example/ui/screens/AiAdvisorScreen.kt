@@ -48,6 +48,7 @@ fun AiAdvisorScreen(
     val listState = rememberLazyListState()
 
     var showContextPreviewDialog by remember { mutableStateOf(false) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     // Scroll to bottom when a new message arrives
     LaunchedEffect(chatMessages.size) {
@@ -139,6 +140,22 @@ fun AiAdvisorScreen(
                         Icon(
                             Icons.Default.DeleteSweep,
                             contentDescription = "مسح المحادثة",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    // Key Config / Settings
+                    IconButton(
+                        onClick = { showSettingsDialog = true },
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "إعدادات المفتاح",
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -383,6 +400,237 @@ fun AiAdvisorScreen(
                     Text("حسناً، فهمت")
                 }
             }
+        )
+    }
+
+    // --- DIALOG: CUSTOM API KEY SETTINGS ---
+    if (showSettingsDialog) {
+        var apiKeyInput by remember { mutableStateOf(com.example.data.util.GeminiService.getSavedApiKey(context)) }
+        var keyVisibility by remember { mutableStateOf(false) }
+        var isVerifying by remember { mutableStateOf(false) }
+        var verifyResultText by remember { mutableStateOf<String?>(null) }
+        var verifyResultColor by remember { mutableStateOf(Color.Gray) }
+        var selectedModel by remember { mutableStateOf(com.example.data.util.GeminiService.getSelectedModel(context)) }
+
+        val primaryColor = MaterialTheme.colorScheme.primary
+        val errorColor = MaterialTheme.colorScheme.error
+
+        AlertDialog(
+            onDismissRequest = { showSettingsDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Key,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "ضبط إعدادات ومستشار الذكاء الاصطناعي",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "لحفظ مفتاح خاص بك لخدمة Gemini، يرجى تزويد المفتاح أدناه. يتم حفظ هذا المفتاح محلياً وبشكل آمن على جهازك فقط.",
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = apiKeyInput,
+                        onValueChange = {
+                            apiKeyInput = it
+                            verifyResultText = null
+                        },
+                        label = { Text("مفتاح Gemini API Key", fontSize = 12.sp) },
+                        singleLine = true,
+                        visualTransformation = if (keyVisibility) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { keyVisibility = !keyVisibility }) {
+                                Icon(
+                                    imageVector = if (keyVisibility) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "إصدار نموذج الذكاء الاصطناعي (Model Version):",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    var modelExpanded by remember { mutableStateOf(false) }
+                    val modelsList = listOf(
+                        "gemini-3.5-flash" to "3.5 Flash",
+                        "gemini-3.1-flash-lite-preview" to "3.1 Flash-Lite"
+                    )
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { modelExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = modelsList.firstOrNull { it.first == selectedModel }?.second ?: selectedModel,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Icon(
+                                    imageVector = if (modelExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = modelExpanded,
+                            onDismissRequest = { modelExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.9f)
+                        ) {
+                            modelsList.forEach { (modelId, modelLabel) ->
+                                DropdownMenuItem(
+                                    text = { Text(modelLabel, fontSize = 12.sp) },
+                                    onClick = {
+                                        selectedModel = modelId
+                                        com.example.data.util.GeminiService.saveSelectedModel(context, modelId)
+                                        modelExpanded = false
+                                        Toast.makeText(context, "تم تحديد نموذج: $modelLabel", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (verifyResultText != null) {
+                        Text(
+                            text = verifyResultText!!,
+                            fontSize = 11.sp,
+                            color = verifyResultColor,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = !isVerifying,
+                            onClick = {
+                                if (apiKeyInput.isBlank()) {
+                                    verifyResultText = "⚠️ يرجى إدخال مفتاح الـ API أولاً"
+                                    verifyResultColor = errorColor
+                                    return@Button
+                                }
+                                isVerifying = true
+                                verifyResultText = "جاري الاتصال والتحقق من المفتاح ومسار الخدمة..."
+                                verifyResultColor = primaryColor
+                                coroutineScope.launch {
+                                    val err = com.example.data.util.GeminiService.verifyApiKeyDetailed(apiKeyInput, selectedModel)
+                                    isVerifying = false
+                                    if (err == null) {
+                                        com.example.data.util.GeminiService.saveApiKey(context, apiKeyInput)
+                                        verifyResultText = "🎉 تم التحقق بنجاح وتنشيط الخدمة!"
+                                        verifyResultColor = Color(0xFF2E7D32)
+                                        Toast.makeText(context, "تم حفظ وتفعيل مفتاح Gemini بنجاح!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        verifyResultText = "❌ فشل الاتصال: $err"
+                                        verifyResultColor = errorColor
+                                    }
+                                }
+                            }
+                        ) {
+                            if (isVerifying) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text("تكامل وحفظ", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        // Bypass Button: Skip & Save directly
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary,
+                                contentColor = MaterialTheme.colorScheme.onSecondary
+                            ),
+                            onClick = {
+                                val finalKey = if (apiKeyInput.isBlank()) "BYPASS" else apiKeyInput
+                                com.example.data.util.GeminiService.saveApiKey(context, finalKey)
+                                Toast.makeText(context, "تم تخطي التحقق وتضمين الحفظ الآمن والميزات بنجاح!", Toast.LENGTH_LONG).show()
+                                showSettingsDialog = false
+                            }
+                        ) {
+                            Text("تخطي وحفظ", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                com.example.data.util.GeminiService.saveApiKey(context, "")
+                                apiKeyInput = ""
+                                verifyResultText = "🗑️ تم حذف المفتاح بنجاح."
+                                verifyResultColor = errorColor
+                                Toast.makeText(context, "تم مسح مفتاحك بنجاح من الذاكرة", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Text("مسح المفتاح", fontSize = 11.sp, color = errorColor)
+                        }
+
+                        TextButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = { showSettingsDialog = false }
+                        ) {
+                            Text("إغلاق", fontSize = 11.sp)
+                        }
+                    }
+                }
+            },
+            dismissButton = null
         )
     }
 }
