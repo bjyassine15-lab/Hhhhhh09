@@ -420,41 +420,64 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun buildStoreDataSummary(): String {
-        val products = allProducts.value
-        val debts = customersWithDebt.value
-        val invoices = allInvoices.value
+        val productsList = allProducts.value
+        val debtsList = customersWithDebt.value
+        val invoicesList = allInvoices.value
 
-        val totalProductsCount = products.size
-        val lowStockCount = products.count { (it.stockQuantity ?: 0) <= 5 }
-        val totalStockBuyValue = products.sumOf { (it.stockQuantity ?: 0) * it.purchasePrice }
-        val totalStockSellValue = products.sumOf { (it.stockQuantity ?: 0) * it.salePrice }
+        val totalProductsCount = productsList.size
+        val lowStockCount = productsList.count { (it.stockQuantity ?: 0) <= 5 }
+        val totalStockBuyValue = productsList.sumOf { (it.stockQuantity ?: 0) * it.purchasePrice }
+        val totalStockSellValue = productsList.sumOf { (it.stockQuantity ?: 0) * it.salePrice }
         val estimatedTotalProfit = totalStockSellValue - totalStockBuyValue
 
-        val totalInvoicesCount = invoices.size
-        val totalSalesVolume = invoices.sumOf { it.invoice.totalAmount }
-        val totalCashCollected = invoices.sumOf { it.invoice.paidAmount }
+        val totalInvoicesCount = invoicesList.size
+        val totalSalesVolume = invoicesList.sumOf { it.invoice.totalAmount }
+        val totalCashCollected = invoicesList.sumOf { it.invoice.paidAmount }
 
-        val customersWithDebtCount = debts.size
-        val totalUnpaidDebtValue = debts.sumOf { it.totalDebt }
+        val customersWithDebtCount = debtsList.size
+        val totalUnpaidDebtValue = debtsList.sumOf { it.totalDebt }
 
-        return """
-            [بيانات المتجر الفورية الحالية]
-            1. المنتجات والمستودع:
-               - إجمالي المنتجات المسجلة فريداً: $totalProductsCount منتجات.
-               - منتجات ينقصها المخزون (أقل من أو يساوي 5): $lowStockCount منتجات.
-               - إجمالي قيمة شراء المخزون الحالي: ${"%.2f".format(totalStockBuyValue)} د.ت.
-               - إجمالي قيمة بيع المخزون المتوقعة: ${"%.2f".format(totalStockSellValue)} د.ت.
-               - إجمالي الأرباح الكامنة في المخزن: ${"%.2f".format(estimatedTotalProfit)} د.ت.
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
 
-            2. حركة المبيعات نقداً:
-               - إجمالي عدد المعاملات والبيوعات: $totalInvoicesCount فواتير ومبيعات.
-               - إجمالي القيمة النقدية للمبيعات: ${"%.2f".format(totalSalesVolume)} د.ت.
-               - المبالغ النقدية المحصلة فعلياً: ${"%.2f".format(totalCashCollected)} د.ت.
+        val sb = java.lang.StringBuilder()
+        // Header summary for system state
+        sb.append("SYS_SUM:P=$totalProductsCount,L=$lowStockCount,B=${"%.1f".format(totalStockBuyValue)},S=${"%.1f".format(totalStockSellValue)},Pr=${"%.1f".format(estimatedTotalProfit)};")
+        sb.append("INV=$totalInvoicesCount,SV=${"%.1f".format(totalSalesVolume)},CC=${"%.1f".format(totalCashCollected)};")
+        sb.append("D=$customersWithDebtCount,DV=${"%.1f".format(totalUnpaidDebtValue)}\n")
 
-            3. السجلات والكريدي (الديون):
-               - إجمالي عدد العملاء المسجل لهم ديون: $customersWithDebtCount عملاء.
-               - القيمة المالية الإجمالية للكريدي والديون العالقة: ${"%.2f".format(totalUnpaidDebtValue)} د.ت.
-        """.trimIndent()
+        // 1. Detailed Products List
+        sb.append("[ALL_PRODUCTS_DETAILS]\n")
+        if (productsList.isEmpty()) {
+            sb.append("No products in database.\n")
+        } else {
+            productsList.forEach { p ->
+                sb.append("${p.name}|${p.barcode}|${p.purchasePrice}|${p.salePrice}|${p.stockQuantity ?: 0}\n")
+            }
+        }
+
+        // 2. Detailed Invoices & Transactions List
+        sb.append("[ALL_INVOICES_DETAILS]\n")
+        if (invoicesList.isEmpty()) {
+            sb.append("No sales transactions yet.\n")
+        } else {
+            invoicesList.forEach { inv ->
+                val dateStr = sdf.format(java.util.Date(inv.invoice.timestamp))
+                val itemsStr = inv.items.joinToString(",") { "${it.productName}(x${it.quantity})" }
+                sb.append("ID:${inv.invoice.id},No:${inv.invoice.invoiceNumber},T:$dateStr,Tot:${inv.invoice.totalAmount},Debt:${inv.invoice.isDebt},Paid:${inv.invoice.paidAmount},Cust:${inv.invoice.customerId ?: ""},Items:[$itemsStr]\n")
+            }
+        }
+
+        // 3. Detailed Debtors List
+        sb.append("[DEBTORS_DETAILS]\n")
+        if (debtsList.isEmpty()) {
+            sb.append("No active debtors in database.\n")
+        } else {
+            debtsList.forEach { d ->
+                sb.append("Name:${d.name},Phone:${d.phone ?: ""},Debt:${d.totalDebt}\n")
+            }
+        }
+
+        return sb.toString().trim()
     }
 
     fun sendPromptToAi(promptText: String, context: Context, onComplete: () -> Unit = {}) {
@@ -473,7 +496,11 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         // Strict Coroutines background execution (Dispatchers.IO) preventing any main thread lag/ANR
         viewModelScope.launch(Dispatchers.IO) {
             val systemInstructionText = """
-                أنت مستشار مالي ذكي لتطبيق كاشير مالي متطور اسمه 'الكاشير الذكي'. مهمتك هي تحليل بيانات المتجر التي سأرسلها لك (مثل المبيعات، والديون، والمخازن والأرباح الكامنة) بدقة، وتقديم توصيات تجارية ومالية وتحليلية للتاجر لتحسين الكريدي وزيادة ربحه والتحكم في المخزون. لا تعتمد على ذكاء عام في الأمور الحسابية، بل ركز على تحليل الأرقام والبيانات المرفقة بدقة. إذا سألتك عن موضوع عام لا علاقة له بالتجارة أو المتجر أو الحسابات أو الحسابات المالية، اعتذر بلباقة ودبلوماسية مبيناً أن تخصصك فقط هو إدارة وتحليل بيانات كاشيرك الذكي. يرجى دائماً الرد باللغة العربية بأسلوب راقٍ وسهل الفهم وتجنب الرموز التقنية الصعبة.
+                أنت مستشار مالي ومسؤول مخزن فائق الذكاء لتطبيق كاشير. أنت الآن تملك المعرفة المطلقة بكل حرف وتفصيلة مسجلة في التطبيق.
+                مرفق لك قائمة بأسماء كل المنتجات بباركوداتها وأسعارها، وقائمة بكل فاتورة تم بيعها وتاريخها، وقائمة بأسماء أصحاب الديون.
+                التعليمات الصارمة: أجب بدقة شديدة ومباشرة جداً "على قدر السؤال". لا تتفلسف، لا تكتب مقدمات، ولا تعطِ نصائح لم تُطلب منك.
+                إذا سُئلت عن منتج معين، ابحث عنه في القائمة المرفقة لك وأجب بمعلوماته.
+                تذكر: المخزون (0) يعني أن المنتج مسجل ومعروف وموجود في النظام ولكن كميته نفذت، فلا تقل أبداً أن المنتج غير موجود، بل قل (المنتج متوفر واسمه كذا ولكن مخزونه 0).
             """.trimIndent()
 
             val dbSummaryContext = buildStoreDataSummary()
