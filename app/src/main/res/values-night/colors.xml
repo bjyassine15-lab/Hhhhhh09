@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand colors (Dark Palette - Modern Metallic & Deep Bank Blue) -->
-    <color name="primary_color">#38BDF8</color>     <!-- Ice/Financial Blue -->
-    <color name="secondary_color">#475569</color>   <!-- Metallic Steel Gray -->
-    <color name="background_color">#0F172A</color>  <!-- Deep eye-friendly dark slate blue -->
-    <color name="surface_color">#1E293B</color>     <!-- Slate card surface -->
-    <color name="text_color">#F8FAFC</color>        <!-- Radiant light gray -->
+    <!-- Brand colors (Premium Dark Theme - Cyber Cyan & Deep Charcoal) -->
+    <color name="background_color">#121212</color>   <!-- Charcoal black -->
+    <color name="card_background">#1E1E1E</color>    <!-- Night grey -->
+    <color name="primary_accent">#00E5FF</color>     <!-- Accent Cyan -->
+    <color name="text_color">#E0E0E0</color>         <!-- Comfortable white text -->
 </resources>

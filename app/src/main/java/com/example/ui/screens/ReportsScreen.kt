@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -516,16 +517,23 @@ fun DebtsTab(viewModel: PosViewModel) {
             }
         }
 
-        // Extended Floating Action Button to add new debts manually
+        // Extended Floating Action Button to add new debts manually (cyber cyan glowing styled)
         ExtendedFloatingActionButton(
             onClick = { showAddManualDebtGeneralDialog = true },
-            icon = { Icon(Icons.Default.Add, contentDescription = null) },
+            icon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp)) },
             text = { Text("إضافة دين جديد", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
             containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
+            contentColor = Color(0xFF121212),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
+                .shadow(
+                    elevation = 10.dp,
+                    shape = RoundedCornerShape(16.dp),
+                    clip = false,
+                    ambientColor = MaterialTheme.colorScheme.primary,
+                    spotColor = MaterialTheme.colorScheme.primary
+                )
         )
     }
 

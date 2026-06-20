@@ -3,12 +3,12 @@ package com.example.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // Modern Deep Charcoal / Slate Black Premium Palette (Dark Mode)
-val FinDarkPrimary = Color(0xFF03DAC6)       // Turquoise Accent/Buttons (Electric Turquoise)
-val FinDarkSecondary = Color(0xFFB0B0B0)     // Cool steel gray
-val FinDarkTertiary = Color(0xFFBB86FC)      // Pastel elegant lavender (used sparingly)
-val FinDarkBackground = Color(0xFF121212)    // Background: #121212 (coal black)
-val FinDarkSurface = Color(0xFF1E1E1E)       // Cards/surface: #1E1E1E (dark gray)
-val FinDarkSurfaceVariant = Color(0xFF2A2A2A) // Accent dark gray panel
+val FinDarkPrimary = Color(0xFF00E5FF)       // Light blue/turquoise accent for branding & controls
+val FinDarkSecondary = Color(0xFFB0B0B0)     // White-grey for texts & secondary indicators
+val FinDarkTertiary = Color(0xFF03DAC6)      // Turquoise fallback (completely removing purple/violet)
+val FinDarkBackground = Color(0xFF121212)    // deep anthracite night background
+val FinDarkSurface = Color(0xFF1E1E1E)       // elegant neutral dark card surface
+val FinDarkSurfaceVariant = Color(0xFF2D2D2D) // dark panel variant
 
 // Modern Professional Financial Palette (Light Mode)
 val FinLightPrimary = Color(0xFF2563EB)      // Deep Electric Blue

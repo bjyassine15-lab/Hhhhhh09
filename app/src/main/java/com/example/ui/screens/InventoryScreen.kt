@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -61,9 +62,16 @@ fun InventoryScreen(
                     showAddEditDialog = true
                 },
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.White
+                contentColor = Color(0xFF121212),
+                modifier = Modifier.shadow(
+                    elevation = 10.dp,
+                    shape = FloatingActionButtonDefaults.shape,
+                    clip = false,
+                    ambientColor = MaterialTheme.colorScheme.primary,
+                    spotColor = MaterialTheme.colorScheme.primary
+                )
             ) {
-                Icon(Icons.Default.Add, contentDescription = "إضافة منتج")
+                Icon(Icons.Default.Add, contentDescription = "إضافة منتج", modifier = Modifier.size(24.dp))
             }
         }
     ) { innerPadding ->
@@ -73,12 +81,46 @@ fun InventoryScreen(
                 .padding(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            Text(
-                text = "قائمة المنتجات والمخزن (${products.size} من المنتجات)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(16.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .shadow(
+                        elevation = 4.dp,
+                        shape = RoundedCornerShape(12.dp),
+                        clip = false
+                    )
+                    .background(
+                        color = Color(0xFF1E1E1E),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "المنتجات والمخازن",
+                        color = Color(0xFFE0E0E0),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 10.dp)
+                            .size(28.dp)
+                            .background(
+                                color = Color(0xFF000000),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = products.size.toString(),
+                            color = Color(0xFF00E5FF),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
 
             if (products.isEmpty()) {
                 Box(
@@ -299,22 +341,7 @@ fun AddEditProductDialog(
     var purchasePriceStr by remember { mutableStateOf(product?.purchasePrice?.toString() ?: "") }
     var salePriceStr by remember { mutableStateOf(product?.salePrice?.toString() ?: "") }
     var stockQuantityStr by remember { mutableStateOf(product?.stockQuantity?.toString() ?: "") }
-    var capturedImagePath by remember { mutableStateOf(product?.imagePath) }
-
-    // Floating Camera Scan Dialog
-    var showCameraScanDialog by remember { mutableStateOf(false) }
-
-    // Native Camera capture configurations
-    var tempPhotoFile by remember { mutableStateOf<File?>(null) }
-    val takePictureLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success && tempPhotoFile != null) {
-            capturedImagePath = tempPhotoFile?.absolutePath
-        } else {
-            Toast.makeText(context, "لم يتم التقاط أي صورة", Toast.LENGTH_SHORT).show()
-        }
-    }
+    val capturedImagePath = product?.imagePath
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -340,57 +367,30 @@ fun AddEditProductDialog(
                     )
                 }
 
-                // Image Capturer layout (Optional)
+                // Live Camera Barcode Scanner View integrated directly in Add Product Dialog!
                 item {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        val painter = rememberAsyncImagePainter(
-                            model = if (!capturedImagePath.isNullOrEmpty()) File(capturedImagePath!!) else null
-                        )
-
                         Box(
                             modifier = Modifier
-                                .size(90.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                                .clickable {
-                                    try {
-                                        val photoFile = File(
-                                            viewModel.getProductImageDirectory(),
-                                            "img_${System.currentTimeMillis()}.jpg"
-                                        )
-                                        tempPhotoFile = photoFile
-                                        val authority = "com.example.fileprovider"
-                                        val uri: Uri = FileProvider.getUriForFile(context, authority, photoFile)
-                                        takePictureLauncher.launch(uri)
-                                    } catch (e: Exception) {
-                                        Toast.makeText(context, "فشل تهيئة الكاميرا التقاطية: ${e.message}", Toast.LENGTH_LONG).show()
-                                    }
-                                },
+                                .fillMaxWidth()
+                                .height(200.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(1.5.dp, Color(0xFF00E5FF), RoundedCornerShape(12.dp))
+                                .background(Color.Black),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (!capturedImagePath.isNullOrEmpty()) {
-                                Image(
-                                    painter = painter,
-                                    contentDescription = "التقاط صورة المنتج",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.PhotoCamera,
-                                        contentDescription = "Camera",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text("أضف صورة", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            CameraScannerView(
+                                viewModel = viewModel,
+                                modifier = Modifier.fillMaxSize(),
+                                onBarcodeDetected = { code, onComplete ->
+                                    barcode = code
+                                    viewModel.playBeep()
+                                    onComplete(true)
                                 }
-                            }
+                            )
                         }
                     }
                 }
@@ -413,8 +413,10 @@ fun AddEditProductDialog(
                         label = { Text("رقم الباركود التعريفى *") },
                         singleLine = true,
                         trailingIcon = {
-                            IconButton(onClick = { showCameraScanDialog = true }) {
-                                Icon(Icons.Default.QrCodeScanner, contentDescription = "مسح باركود", tint = MaterialTheme.colorScheme.primary)
+                            IconButton(onClick = {
+                                Toast.makeText(context, "يتم المسح تلقائياً عبر الكاميرا في الأعلى", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Icon(Icons.Default.QrCodeScanner, contentDescription = "مسح باركود", tint = Color(0xFF00E5FF))
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -503,40 +505,6 @@ fun AddEditProductDialog(
                         ) {
                             Text("حفظ")
                         }
-                    }
-                }
-            }
-        }
-    }
-
-    // Camera Scan Dialog to Autofill Barcode
-    if (showCameraScanDialog) {
-        Dialog(onDismissRequest = { showCameraScanDialog = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    CameraScannerView(
-                        viewModel = viewModel,
-                        onBarcodeDetected = { code, onComplete ->
-                            barcode = code
-                            viewModel.playBeep()
-                            showCameraScanDialog = false
-                            onComplete(true)
-                        }
-                    )
-
-                    IconButton(
-                        onClick = { showCameraScanDialog = false },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                    ) {
-                        Icon(Icons.Default.Close, contentDescription = "إغلاق الكاميرا", tint = Color.White)
                     }
                 }
             }

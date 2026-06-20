@@ -129,7 +129,20 @@ fun CameraPreviewAndScanner(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
+    
+    // Find activity level LifecycleOwner to prevent black screens inside dialogs!
+    val lifecycleOwner = remember(context) {
+        var curContext = context
+        var foundOwner: androidx.lifecycle.LifecycleOwner? = null
+        while (curContext is android.content.ContextWrapper) {
+            if (curContext is androidx.lifecycle.LifecycleOwner) {
+                foundOwner = curContext
+                break
+            }
+            curContext = curContext.baseContext
+        }
+        foundOwner ?: (context as? androidx.lifecycle.LifecycleOwner) ?: error("No LifecycleOwner found")
+    }
 
     val cameraExecutor: ExecutorService = remember { Executors.newSingleThreadExecutor() }
     
@@ -162,10 +175,27 @@ fun CameraPreviewAndScanner(
         isProcessing.set(false)
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(lifecycleOwner) {
         onDispose {
-            cameraExecutor.shutdown()
-            scanner.close()
+            try {
+                cameraExecutor.shutdown()
+                scanner.close()
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                if (cameraProviderFuture.isDone) {
+                    val cameraProvider = cameraProviderFuture.get()
+                    cameraProvider.unbindAll()
+                } else {
+                    cameraProviderFuture.addListener({
+                        try {
+                            cameraProviderFuture.get().unbindAll()
+                        } catch (e: Exception) {
+                            Log.e("CameraPreviewAndScanner", "Error unbinding camera on disposal", e)
+                        }
+                    }, ContextCompat.getMainExecutor(context))
+                }
+            } catch (exc: Exception) {
+                Log.e("CameraPreviewAndScanner", "Failed to unbind camera provider on dispose", exc)
+            }
         }
     }
 
@@ -173,6 +203,7 @@ fun CameraPreviewAndScanner(
         factory = { ctx ->
             val previewView = PreviewView(ctx).apply {
                 scaleType = PreviewView.ScaleType.FILL_CENTER
+                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -293,38 +324,102 @@ fun ScannerOverlay(modifier: Modifier = Modifier) {
             val top = (canvasHeight - boxHeight) / 2
 
             // Draw translucent dark background chunks around scanning window to form a perfect cutout
+            // Let's use 60% opacity for a nice professional dimming
+            val dimColor = Color.Black.copy(alpha = 0.60f)
             // Top overlay section
             drawRect(
-                color = Color.Black.copy(alpha = 0.5f),
+                color = dimColor,
                 topLeft = Offset(0f, 0f),
                 size = Size(canvasWidth, top)
             )
             // Bottom overlay section
             drawRect(
-                color = Color.Black.copy(alpha = 0.5f),
+                color = dimColor,
                 topLeft = Offset(0f, top + boxHeight),
                 size = Size(canvasWidth, canvasHeight - (top + boxHeight))
             )
             // Left overlay section
             drawRect(
-                color = Color.Black.copy(alpha = 0.5f),
+                color = dimColor,
                 topLeft = Offset(0f, top),
                 size = Size(left, boxHeight)
             )
             // Right overlay section
             drawRect(
-                color = Color.Black.copy(alpha = 0.5f),
+                color = dimColor,
                 topLeft = Offset(left + boxWidth, top),
                 size = Size(canvasWidth - (left + boxWidth), boxHeight)
             )
 
+            val cyberCyan = Color(0xFF00E5FF)
+
             // Draw a beautiful bright border around the scanning window
             drawRoundRect(
-                color = Color.Green,
+                color = cyberCyan.copy(alpha = 0.3f),
                 topLeft = Offset(left, top),
                 size = Size(boxWidth, boxHeight),
-                cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx()),
-                style = Stroke(width = 3.dp.toPx())
+                cornerRadius = CornerRadius(12.dp.toPx(), 12.dp.toPx()),
+                style = Stroke(width = 1.5.dp.toPx())
+            )
+
+            // Draw thick glowing corner targets for that professional scanner feel
+            val lineLen = 22.dp.toPx()
+            val strokeW = 4.dp.toPx()
+
+            // Top-Left corner
+            // Horizontal stroke
+            drawRect(
+                color = cyberCyan,
+                topLeft = Offset(left, top),
+                size = Size(lineLen, strokeW)
+            )
+            // Vertical stroke
+            drawRect(
+                color = cyberCyan,
+                topLeft = Offset(left, top),
+                size = Size(strokeW, lineLen)
+            )
+
+            // Top-Right corner
+            // Horizontal stroke
+            drawRect(
+                color = cyberCyan,
+                topLeft = Offset(left + boxWidth - lineLen, top),
+                size = Size(lineLen, strokeW)
+            )
+            // Vertical stroke
+            drawRect(
+                color = cyberCyan,
+                topLeft = Offset(left + boxWidth - strokeW, top),
+                size = Size(strokeW, lineLen)
+            )
+
+            // Bottom-Left corner
+            // Horizontal stroke
+            drawRect(
+                color = cyberCyan,
+                topLeft = Offset(left, top + boxHeight - strokeW),
+                size = Size(lineLen, strokeW)
+            )
+            // Vertical stroke
+            drawRect(
+                color = cyberCyan,
+                topLeft = Offset(left, top + boxHeight - lineLen),
+                size = Size(strokeW, lineLen)
+            )
+
+            // Bottom-Right corner
+            // Horizontal stroke
+            drawRect(
+                color = cyberCyan,
+                topLeft = Offset(left + boxWidth - lineLen, top + boxHeight - strokeW),
+                size = Size(lineLen, strokeW)
+            )
+            // Vertical stroke
+            drawRect(
+                color = cyberCyan,
+                topLeft = Offset(left + boxWidth - strokeW, top + boxHeight - lineLen),
+                size = Size(strokeW, lineLen)
             )
         }
 

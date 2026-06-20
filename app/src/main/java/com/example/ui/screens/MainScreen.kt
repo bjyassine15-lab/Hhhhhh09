@@ -87,14 +87,14 @@ fun MainScreen(
                 },
                 actions = {
                     // "تبديل المظهر الليلي والنهاري" Switcher Button
-                    val isDarkThemeNow = isSystemInDarkTheme()
+                    val isDarkThemeNow = MaterialTheme.colorScheme.background == androidx.compose.ui.graphics.Color(0xFF121212)
                     IconButton(
                         onClick = onThemeToggle
                     ) {
                         Icon(
-                            imageVector = if (isDarkThemeNow) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            imageVector = if (isDarkThemeNow) Icons.Default.DarkMode else Icons.Default.WbSunny,
                             contentDescription = "تبديل المظهر",
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = Color(0xFF00E5FF)
                         )
                     }
 

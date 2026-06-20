@@ -13,15 +13,15 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme =
   darkColorScheme(
-    primary = FinDarkPrimary,
+    primary = Color(0xFF00E5FF),            // Sky blue / celestial cyan primary_accent
     secondary = FinDarkSecondary,
     tertiary = FinDarkTertiary,
-    background = FinDarkBackground,         // Modern deep slate blue-gray
-    surface = FinDarkSurface,               // Cool metal gray cards
-    onBackground = Color(0xFFF8FAFC),       // Clean radiant off-white text
-    onSurface = Color(0xFFF8FAFC),
+    background = Color(0xFF121212),         // Charcoal black background_color
+    surface = Color(0xFF1E1E1E),            // Night gray card_background
+    onBackground = Color(0xFFE0E0E0),       // Comfortable white text_color
+    onSurface = Color(0xFFE0E0E0),          // Comfortable white text_color
     surfaceVariant = FinDarkSurfaceVariant,  // Premium dark accent panels
-    onSurfaceVariant = Color(0xFFCBD5E1)      // Readable secondary text
+    onSurfaceVariant = Color(0xFFB0B0B0)      // Readable secondary text
   )
 
 private val LightColorScheme =
