@@ -13,28 +13,50 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme =
   darkColorScheme(
-    primary = Color(0xFF00E5FF),            // Sky blue / celestial cyan primary_accent
-    secondary = FinDarkSecondary,
-    tertiary = FinDarkTertiary,
-    background = Color(0xFF121212),         // Charcoal black background_color
-    surface = Color(0xFF1E1E1E),            // Night gray card_background
-    onBackground = Color(0xFFE0E0E0),       // Comfortable white text_color
-    onSurface = Color(0xFFE0E0E0),          // Comfortable white text_color
-    surfaceVariant = FinDarkSurfaceVariant,  // Premium dark accent panels
-    onSurfaceVariant = Color(0xFFB0B0B0)      // Readable secondary text
+    primary = Color(0xFF00E5FF),            // Cyber Cyan primary
+    onPrimary = Color(0xFF121212),          // High-contrast deep primary text
+    primaryContainer = Color(0xFF1E1E1E),   // Night Gray card_background
+    onPrimaryContainer = Color(0xFFE0E0E0), // Comfortable white text
+    inversePrimary = Color(0xFF121212),
+    secondary = Color(0xFFB0B0B0),
+    onSecondary = Color(0xFF121212),
+    secondaryContainer = Color(0xFF2D2D2D), // Accent panels
+    onSecondaryContainer = Color(0xFFE0E0E0),
+    tertiary = Color(0xFF03DAC6),
+    onTertiary = Color(0xFF121212),
+    tertiaryContainer = Color(0xFF1E1E1E),
+    onTertiaryContainer = Color(0xFFE0E0E0),
+    background = Color(0xFF121212),         // Charcoal Black background
+    onBackground = Color(0xFFE0E0E0),       // Comfortable white text
+    surface = Color(0xFF1E1E1E),            // Night Gray card surface
+    onSurface = Color(0xFFE0E0E0),
+    surfaceVariant = Color(0xFF2D2D2D),     // Accent panels
+    onSurfaceVariant = Color(0xFFB0B0B0),
+    surfaceTint = Color(0xFF121212)         // Prevent default purple surfaceTint
   )
 
 private val LightColorScheme =
-  lightColorScheme(
-    primary = FinLightPrimary,
-    secondary = FinLightSecondary,
-    tertiary = FinLightTertiary,
-    background = FinLightBackground,        // Clean modern light gray-blue
-    surface = FinLightSurface,               // Polished white cards
-    onBackground = Color(0xFF0F172A),       // Sharp professional dark text
-    onSurface = Color(0xFF0F172A),
-    surfaceVariant = FinLightSurfaceVariant, // Light accent gray
-    onSurfaceVariant = Color(0xFF475569)     // Slate-cool secondary text
+  darkColorScheme(                          // Force Dark palette even in Light configuration to lock the theme
+    primary = Color(0xFF00E5FF),
+    onPrimary = Color(0xFF121212),
+    primaryContainer = Color(0xFF1E1E1E),
+    onPrimaryContainer = Color(0xFFE0E0E0),
+    inversePrimary = Color(0xFF121212),
+    secondary = Color(0xFFB0B0B0),
+    onSecondary = Color(0xFF121212),
+    secondaryContainer = Color(0xFF2D2D2D),
+    onSecondaryContainer = Color(0xFFE0E0E0),
+    tertiary = Color(0xFF03DAC6),
+    onTertiary = Color(0xFF121212),
+    tertiaryContainer = Color(0xFF1E1E1E),
+    onTertiaryContainer = Color(0xFFE0E0E0),
+    background = Color(0xFF121212),
+    onBackground = Color(0xFFE0E0E0),
+    surface = Color(0xFF1E1E1E),
+    onSurface = Color(0xFFE0E0E0),
+    surfaceVariant = Color(0xFF2D2D2D),
+    onSurfaceVariant = Color(0xFFB0B0B0),
+    surfaceTint = Color(0xFF121212)
   )
 
 @Composable

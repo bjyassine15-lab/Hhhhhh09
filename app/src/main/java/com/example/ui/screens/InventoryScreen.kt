@@ -343,6 +343,8 @@ fun AddEditProductDialog(
     var stockQuantityStr by remember { mutableStateOf(product?.stockQuantity?.toString() ?: "") }
     val capturedImagePath = product?.imagePath
 
+    var showBarcodeScannerDialog by remember { mutableStateOf(false) }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -367,34 +369,6 @@ fun AddEditProductDialog(
                     )
                 }
 
-                // Live Camera Barcode Scanner View integrated directly in Add Product Dialog!
-                item {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .border(1.5.dp, Color(0xFF00E5FF), RoundedCornerShape(12.dp))
-                                .background(Color.Black),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CameraScannerView(
-                                viewModel = viewModel,
-                                modifier = Modifier.fillMaxSize(),
-                                onBarcodeDetected = { code, onComplete ->
-                                    barcode = code
-                                    viewModel.playBeep()
-                                    onComplete(true)
-                                }
-                            )
-                        }
-                    }
-                }
-
                 // Mandatory fields
                 item {
                     OutlinedTextField(
@@ -414,7 +388,7 @@ fun AddEditProductDialog(
                         singleLine = true,
                         trailingIcon = {
                             IconButton(onClick = {
-                                Toast.makeText(context, "يتم المسح تلقائياً عبر الكاميرا في الأعلى", Toast.LENGTH_SHORT).show()
+                                showBarcodeScannerDialog = true
                             }) {
                                 Icon(Icons.Default.QrCodeScanner, contentDescription = "مسح باركود", tint = Color(0xFF00E5FF))
                             }
@@ -505,6 +479,65 @@ fun AddEditProductDialog(
                         ) {
                             Text("حفظ")
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showBarcodeScannerDialog) {
+        Dialog(onDismissRequest = { showBarcodeScannerDialog = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "مسح باركود المنتج",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.5.dp, Color(0xFF00E5FF), RoundedCornerShape(12.dp))
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CameraScannerView(
+                            viewModel = viewModel,
+                            modifier = Modifier.fillMaxSize(),
+                            onBarcodeDetected = { code, onComplete ->
+                                barcode = code
+                                viewModel.playBeep()
+                                onComplete(true)
+                                showBarcodeScannerDialog = false
+                            }
+                        )
+                    }
+                    
+                    Button(
+                        onClick = { showBarcodeScannerDialog = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("إلغاء", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
             }
