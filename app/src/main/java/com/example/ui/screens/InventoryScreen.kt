@@ -24,6 +24,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -55,23 +58,27 @@ fun InventoryScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues),
+        containerColor = Color.Transparent, // Transparent because we use custom gradient on Column
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
                     selectedProductForEdit = null
                     showAddEditDialog = true
                 },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color(0xFF121212),
-                modifier = Modifier.shadow(
-                    elevation = 10.dp,
-                    shape = FloatingActionButtonDefaults.shape,
-                    clip = false,
-                    ambientColor = MaterialTheme.colorScheme.primary,
-                    spotColor = MaterialTheme.colorScheme.primary
-                )
+                containerColor = Color(0xFFFF9800),
+                contentColor = Color.Black,
+                shape = CircleShape,
+                modifier = Modifier
+                    .size(60.dp)
+                    .shadow(
+                        elevation = 16.dp,
+                        shape = CircleShape,
+                        clip = false,
+                        spotColor = Color(0xFFFF9800),
+                        ambientColor = Color(0xFFFF9800)
+                    )
             ) {
-                Icon(Icons.Default.Add, contentDescription = "إضافة منتج", modifier = Modifier.size(24.dp))
+                Icon(Icons.Default.Add, contentDescription = "إضافة منتج", modifier = Modifier.size(28.dp))
             }
         }
     ) { innerPadding ->
@@ -79,44 +86,66 @@ fun InventoryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF000000),
+                            Color(0xFF070C10),
+                            Color(0xFF020406)
+                        )
+                    )
+                )
         ) {
-            Box(
+            // REDESIGNED HEADER: Products and Stores card with integrated badge
+            Card(
                 modifier = Modifier
-                    .padding(16.dp)
-                    .shadow(
-                        elevation = 4.dp,
-                        shape = RoundedCornerShape(12.dp),
-                        clip = false
-                    )
-                    .background(
-                        color = Color(0xFF1E1E1E),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, Color(0xFF1E1E1E))
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "المنتجات والمخازن",
-                        color = Color(0xFFE0E0E0),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Inventory,
+                            contentDescription = null,
+                            tint = Color(0xFFFF9800),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Text(
+                            text = "المنتجات والمخازن",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Modern Badge with custom glowing border
                     Box(
                         modifier = Modifier
-                            .padding(start = 10.dp)
-                            .size(28.dp)
                             .background(
-                                color = Color(0xFF000000),
-                                shape = CircleShape
-                            ),
+                                color = Color(0xFFFF9800).copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .border(1.dp, Color(0xFFFF9800).copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = products.size.toString(),
-                            color = Color(0xFF00E5FF),
+                            text = "${products.size} منتج",
+                            color = Color(0xFFFF9800),
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 12.sp
                         )
                     }
                 }
@@ -133,26 +162,43 @@ fun InventoryScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier.padding(24.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Inventory,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                            modifier = Modifier.size(64.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(96.dp)
+                                .background(Color(0xFFFF9800).copy(alpha = 0.05f), CircleShape)
+                                .border(1.dp, Color(0xFFFF9800).copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Inventory,
+                                contentDescription = null,
+                                tint = Color(0xFFFF9800),
+                                modifier = Modifier.size(42.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Text(
+                            text = "لا توجد منتجات بالمخزن",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            textAlign = TextAlign.Center
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "لا يوجد أي منتج مسجل في النظام حالياً. إضغط على الزر العائم (+) في الأسفل لإضافة أول منتج.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
+                            color = Color(0xFF8A8A8A),
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier.padding(horizontal = 24.dp)
                         )
                     }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 80.dp)
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp)
                 ) {
                     items(products, key = { it.id }) { product ->
                         ProductItemRow(
@@ -198,14 +244,15 @@ fun ProductItemRow(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            .padding(vertical = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFF1C1C1C))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Local Image preview
@@ -215,9 +262,10 @@ fun ProductItemRow(
 
             Box(
                 modifier = Modifier
-                    .size(54.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF171717))
+                    .border(1.dp, Color(0xFF1C1C1C), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (!product.imagePath.isNullOrEmpty()) {
@@ -231,39 +279,43 @@ fun ProductItemRow(
                     Icon(
                         Icons.Default.Image,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        tint = Color(0xFFCCFFFF).copy(alpha = 0.2f),
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(16.dp))
 
             // Details
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = product.name,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    color = Color.White,
+                    fontSize = 15.sp
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "باركود: ${product.barcode}",
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFF8A8A8A)
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = String.format("شراء: %.2f د.ت", product.purchasePrice),
                         fontSize = 12.sp,
-                        color = Color.Red.copy(alpha = 0.8f)
+                        color = Color(0xFFF44336).copy(alpha = 0.8f)
                     )
                     Text(
                         text = String.format("بيع: %.2f د.ت", product.salePrice),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFF9800)
                     )
                 }
                 
@@ -272,30 +324,58 @@ fun ProductItemRow(
                     val lowStock = product.stockQuantity <= 5
                     Box(
                         modifier = Modifier
-                            .padding(top = 4.dp)
+                            .padding(top = 8.dp)
                             .background(
-                                color = if (lowStock) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
-                                shape = RoundedCornerShape(4.dp)
+                                color = if (lowStock) Color(0xFFF44336).copy(alpha = 0.15f) else Color(0xFF4CAF50).copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(6.dp)
                             )
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .border(
+                                width = 1.dp,
+                                color = if (lowStock) Color(0xFFF44336).copy(alpha = 0.3f) else Color(0xFF4CAF50).copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(6.dp)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = "المخزن: ${product.stockQuantity} قطع",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (lowStock) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                            color = if (lowStock) Color(0xFFF44336) else Color(0xFF4CAF50)
                         )
                     }
                 }
             }
 
             // Edit & Delete icons
-            Row {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, contentDescription = "تعديل المنتج", tint = MaterialTheme.colorScheme.primary)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0xFF171717), RoundedCornerShape(10.dp))
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "تعديل المنتج",
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
-                IconButton(onClick = { showDeleteConfirm = true }) {
-                    Icon(Icons.Default.Delete, contentDescription = "حذف المنتج", tint = MaterialTheme.colorScheme.error)
+                IconButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0xFF171717), RoundedCornerShape(10.dp))
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "حذف المنتج",
+                        tint = Color(0xFFF44336).copy(alpha = 0.8f),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
         }
@@ -349,22 +429,40 @@ fun AddEditProductDialog(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            shape = RoundedCornerShape(16.dp)
+                .padding(vertical = 12.dp)
+                .border(BorderStroke(1.dp, Color(0xFF262626)), RoundedCornerShape(28.dp)),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF171717))
         ) {
+            // Correctly declare styling inside Composable card content scope
+            val inputShape = RoundedCornerShape(20.dp)
+            val inputColors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFFFF9800),
+                unfocusedBorderColor = Color(0xFF262626),
+                focusedLabelColor = Color(0xFFFF9800),
+                unfocusedLabelColor = Color(0xFF8A8A8A),
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                cursorColor = Color(0xFFFF9800),
+                focusedContainerColor = Color(0xFF121212),
+                unfocusedContainerColor = Color(0xFF121212)
+            )
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 item {
                     Text(
-                        text = if (product == null) "إضافة منتج جديد للمخزن" else "تعديل بيانات المنتج",
-                        style = MaterialTheme.typography.titleMedium,
+                        text = if (product == null) "إضافة منتج جديد" else "تعديل منتج",
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.fillMaxWidth(),
+                        color = Color.White,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -374,8 +472,10 @@ fun AddEditProductDialog(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("أدخل اسم المنتج *") },
+                        label = { Text("اسم المنتج *", fontSize = 13.sp) },
                         singleLine = true,
+                        shape = inputShape,
+                        colors = inputColors,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -384,13 +484,24 @@ fun AddEditProductDialog(
                     OutlinedTextField(
                         value = barcode,
                         onValueChange = { barcode = it },
-                        label = { Text("رقم الباركود التعريفى *") },
+                        label = { Text("رمز الباركود *", fontSize = 13.sp) },
                         singleLine = true,
+                        shape = inputShape,
+                        colors = inputColors,
                         trailingIcon = {
-                            IconButton(onClick = {
-                                showBarcodeScannerDialog = true
-                            }) {
-                                Icon(Icons.Default.QrCodeScanner, contentDescription = "مسح باركود", tint = Color(0xFF00E5FF))
+                            IconButton(
+                                onClick = { showBarcodeScannerDialog = true },
+                                modifier = Modifier
+                                    .padding(end = 4.dp)
+                                    .size(36.dp)
+                                    .background(Color(0xFF171717), CircleShape)
+                            ) {
+                                Icon(
+                                    Icons.Default.QrCodeScanner,
+                                    contentDescription = "مسح باركود",
+                                    tint = Color(0xFFFF9800),
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -398,20 +509,24 @@ fun AddEditProductDialog(
                 }
 
                 item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
                             value = purchasePriceStr,
                             onValueChange = { purchasePriceStr = it },
-                            label = { Text("سعر الشراء *") },
+                            label = { Text("سعر الشراء *", fontSize = 11.sp) },
                             singleLine = true,
+                            shape = inputShape,
+                            colors = inputColors,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.weight(1f)
                         )
                         OutlinedTextField(
                             value = salePriceStr,
                             onValueChange = { salePriceStr = it },
-                            label = { Text("سعر البيع *") },
+                            label = { Text("سعر البيع *", fontSize = 11.sp) },
                             singleLine = true,
+                            shape = inputShape,
+                            colors = inputColors,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.weight(1f)
                         )
@@ -423,8 +538,10 @@ fun AddEditProductDialog(
                     OutlinedTextField(
                         value = stockQuantityStr,
                         onValueChange = { stockQuantityStr = it },
-                        label = { Text("الكمية المتوفرة بالمخزن (اختياري)") },
+                        label = { Text("الكمية بالمخزن (اختياري)", fontSize = 13.sp) },
                         singleLine = true,
+                        shape = inputShape,
+                        colors = inputColors,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -432,15 +549,24 @@ fun AddEditProductDialog(
 
                 // Action controls at bottom
                 item {
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = onDismiss) {
-                            Text("إلغاء")
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "إلغاء",
+                                color = Color(0xFFC7C7C7),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        
                         Button(
                             onClick = {
                                 val purchaseVal = purchasePriceStr.toDoubleOrNull()
@@ -475,9 +601,23 @@ fun AddEditProductDialog(
                                     onSuccess = onSave
                                 )
                             },
-                            enabled = name.isNotEmpty() && barcode.isNotEmpty()
+                            enabled = name.isNotEmpty() && barcode.isNotEmpty(),
+                            modifier = Modifier
+                                .weight(1.5f)
+                                .height(46.dp),
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFF9800),
+                                contentColor = Color.Black,
+                                disabledContainerColor = Color(0xFFFF9800).copy(alpha = 0.3f),
+                                disabledContentColor = Color.Black.copy(alpha = 0.5f)
+                            )
                         ) {
-                            Text("حفظ")
+                            Text(
+                                "حفظ البيانات",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -516,7 +656,7 @@ fun AddEditProductDialog(
                             .fillMaxWidth()
                             .height(250.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .border(1.5.dp, Color(0xFF00E5FF), RoundedCornerShape(12.dp))
+                            .border(1.5.dp, Color(0xFFFF9800), RoundedCornerShape(12.dp))
                             .background(Color.Black),
                         contentAlignment = Alignment.Center
                     ) {

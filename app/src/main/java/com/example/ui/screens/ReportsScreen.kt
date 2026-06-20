@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -27,6 +29,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import com.example.data.entity.Customer
 import com.example.data.entity.DebtPayment
 import com.example.data.entity.Invoice
@@ -51,22 +56,61 @@ fun ReportsScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .background(MaterialTheme.colorScheme.background)
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF000000),
+                        Color(0xFF070C10),
+                        Color(0xFF020406)
+                    )
+                )
+            )
     ) {
-        // Tab Layout
+        // Premium Custom Animated TabRow
         TabRow(
             selectedTabIndex = tabIndex,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            containerColor = Color(0xFF0C0C0C),
+            contentColor = Color.White,
+            indicator = { tabPositions ->
+                if (tabIndex < tabPositions.size) {
+                    val activeColor = when (tabIndex) {
+                        0 -> Color(0xFF4CAF50) // المرابيح = Green
+                        1 -> Color(0xFFE040FB) // سجل الفواتير = Fuchsia/Purple
+                        2 -> Color(0xFFF44336) // الديون (الكريدي) = Red
+                        3 -> Color(0xFFFF9800) // تنبيهات المخزن = Amber
+                        else -> Color(0xFFE040FB)
+                    }
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[tabIndex]),
+                        color = activeColor,
+                        height = 3.dp
+                    )
+                }
+            },
+            divider = {
+                HorizontalDivider(color = Color(0xFF161616))
+            }
         ) {
             tabTitles.forEachIndexed { index, title ->
+                val isSelected = tabIndex == index
+                val activeTabColor = when (index) {
+                    0 -> Color(0xFF4CAF50)
+                    1 -> Color(0xFFE040FB)
+                    2 -> Color(0xFFF44336)
+                    3 -> Color(0xFFFF9800)
+                    else -> Color(0xFFE040FB)
+                }
                 Tab(
-                    selected = tabIndex == index,
+                    selected = isSelected,
                     onClick = { tabIndex = index },
+                    selectedContentColor = activeTabColor,
+                    unselectedContentColor = Color(0xFF666666),
                     text = {
                         Text(
                             text = title,
                             fontSize = 12.sp,
-                            fontWeight = if (tabIndex == index) FontWeight.Bold else FontWeight.Normal,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             maxLines = 1
                         )
                     }
@@ -80,6 +124,55 @@ fun ReportsScreen(
             2 -> DebtsTab(viewModel)
             3 -> StockAlertsTab(viewModel)
         }
+    }
+}
+
+// Reusable Professional Material 3 Empty State Composable
+@Composable
+fun EmptyStateRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+    accentColor: Color
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .background(accentColor.copy(alpha = 0.05f), CircleShape)
+                .border(1.dp, accentColor.copy(alpha = 0.15f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = accentColor,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(20.dp))
+        Text(
+            text = title,
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp,
+            color = Color.White,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = description,
+            fontSize = 12.sp,
+            color = Color(0xFF8A8A8A),
+            textAlign = TextAlign.Center,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
     }
 }
 
@@ -114,7 +207,8 @@ fun ProfitsTab(viewModel: PosViewModel) {
                 text = "التقرير المالي العام للمبيعات",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = Color.White,
+                modifier = Modifier.padding(bottom = 4.dp)
             )
         }
 
@@ -124,8 +218,8 @@ fun ProfitsTab(viewModel: PosViewModel) {
                 title = "إجمالي المداخيل (المبيعات)",
                 value = String.format("%.2f د.ت", totalIncome),
                 icon = Icons.Default.TrendingUp,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                onColor = MaterialTheme.colorScheme.onPrimaryContainer
+                color = Color(0xFF121212),
+                onColor = Color.White
             )
         }
 
@@ -135,8 +229,8 @@ fun ProfitsTab(viewModel: PosViewModel) {
                 title = "صافي المرابيح (الأرباح الصافية)",
                 value = String.format("%.2f د.ت", totalProfit),
                 icon = Icons.Default.Paid,
-                color = Color(0xFFE8F5E9), // Light Green
-                onColor = Color(0xFF1B5E20)
+                color = Color(0xFF121212),
+                onColor = Color(0xFF4CAF50)
             )
         }
 
@@ -146,8 +240,8 @@ fun ProfitsTab(viewModel: PosViewModel) {
                 title = "إجمالي ديون السوق (الكريدي الخارجي)",
                 value = String.format("%.2f د.ت", totalMarketDebts),
                 icon = Icons.Default.MoneyOff,
-                color = MaterialTheme.colorScheme.errorContainer,
-                onColor = MaterialTheme.colorScheme.onErrorContainer
+                color = Color(0xFF121212),
+                onColor = Color(0xFFF44336)
             )
         }
     }
@@ -161,39 +255,77 @@ fun StatCard(
     color: Color,
     onColor: Color
 ) {
+    // Dynamically apply beautiful cyber POS system design
+    val isProfit = title.contains("مرابيح") || title.contains("الأرباح")
+    val isDebt = title.contains("ديون") || title.contains("الكريدي")
+
+    val strokeColor = when {
+        isProfit -> Color(0xFF4CAF50).copy(alpha = 0.3f)
+        isDebt -> Color(0xFFF44336).copy(alpha = 0.3f)
+        else -> Color(0xFFE040FB).copy(alpha = 0.3f)
+    }
+
+    val valueTextColor = when {
+        isProfit -> Color(0xFF4CAF50)
+        isDebt -> Color(0xFFF44336)
+        else -> Color.White
+    }
+
+    val iconTint = when {
+        isProfit -> Color(0xFF4CAF50)
+        isDebt -> Color(0xFFF44336)
+        else -> Color(0xFFE040FB)
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = color),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+        shape = RoundedCornerShape(24.dp),
+        border = BorderStroke(1.dp, strokeColor)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
+                .padding(24.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = onColor.copy(alpha = 0.8f)
+                    color = Color(0xFFC7C7C7)
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = value,
-                    fontSize = 24.sp,
+                    fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
-                    color = onColor
+                    color = valueTextColor,
+                    style = androidx.compose.ui.text.TextStyle(
+                        shadow = if (!isProfit && !isDebt) Shadow(
+                            color = Color(0xFFE040FB).copy(alpha = 0.2f),
+                            offset = Offset(0f, 0f),
+                            blurRadius = 8f
+                        ) else null
+                    )
                 )
             }
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = onColor.copy(alpha = 0.6f),
-                modifier = Modifier.size(36.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .background(Color(0xFF171717), CircleShape)
+                    .border(1.dp, strokeColor.copy(alpha = 0.6f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
         }
     }
 }
@@ -240,13 +372,12 @@ fun InvoicesHistoryTab(viewModel: PosViewModel) {
         }
 
         if (filteredInvoices.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "لا توجد فواتير مطابقة لهذا الفلتر بعد.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
-                )
-            }
+            EmptyStateRow(
+                icon = Icons.Default.Receipt,
+                title = "سجل الفواتير فارغ",
+                description = "لا توجد أي فواتير مسجلة مطابقة لهذا الفلتر بعد في سجل مبيعات متجرك.",
+                accentColor = Color(0xFFE040FB)
+            )
         } else {
             LazyColumn(
                 modifier = Modifier
@@ -286,13 +417,14 @@ fun InvoiceRow(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+        border = BorderStroke(1.dp, Color(0xFF1C1C1C))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -300,17 +432,20 @@ fun InvoiceRow(
                 Text(
                     text = "فاتورة: ${invoiceWithItems.invoice.invoiceNumber}",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
+                    fontSize = 14.sp,
+                    color = Color.White
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = dateText,
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFF8A8A8A)
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = "${invoiceWithItems.items.size} من المواد المباعة",
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    color = Color(0xFFE040FB)
                 )
             }
 
@@ -319,24 +454,30 @@ fun InvoiceRow(
                     text = String.format("%.2f د.ت", invoiceWithItems.invoice.totalAmount),
                     fontWeight = FontWeight.Black,
                     fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    color = Color(0xFFE040FB)
                 )
                 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
+                val isDebtStatus = invoiceWithItems.invoice.isDebt
                 Box(
                     modifier = Modifier
                         .background(
-                            color = if (invoiceWithItems.invoice.isDebt) MaterialTheme.colorScheme.errorContainer else Color(0xFFE8F5E9),
-                            shape = RoundedCornerShape(4.dp)
+                            color = if (isDebtStatus) Color(0xFFF44336).copy(alpha = 0.15f) else Color(0xFF4CAF50).copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp)
                         )
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .border(
+                            1.dp,
+                            if (isDebtStatus) Color(0xFFF44336).copy(alpha = 0.3f) else Color(0xFF4CAF50).copy(alpha = 0.3f),
+                            RoundedCornerShape(6.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = if (invoiceWithItems.invoice.isDebt) "كريدي (دين)" else "نقداً",
+                        text = if (isDebtStatus) "كريدي (دين)" else "نقداً",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (invoiceWithItems.invoice.isDebt) MaterialTheme.colorScheme.onErrorContainer else Color(0xFF1B5E20)
+                        color = if (isDebtStatus) Color(0xFFF44336) else Color(0xFF4CAF50)
                     )
                 }
             }
@@ -496,12 +637,12 @@ fun DebtsTab(viewModel: PosViewModel) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (customersWithDebt.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    "لا يوجد أي عميل مسجل ديون (كريدي) في النظام.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            EmptyStateRow(
+                icon = Icons.Default.Groups,
+                title = "سجل الديون فارغ تماماً",
+                description = "دفتر الكريدي نظيف ولا توجد مبالغ مستحقة أو ديون معلقة على أي زبون حالياً.",
+                accentColor = Color(0xFFF44336)
+            )
         } else {
             LazyColumn(
                 modifier = Modifier
@@ -517,22 +658,26 @@ fun DebtsTab(viewModel: PosViewModel) {
             }
         }
 
-        // Extended Floating Action Button to add new debts manually (cyber cyan glowing styled)
+        // Extended Floating Action Button to add new debts manually (cyber red glowing styled as requested)
         ExtendedFloatingActionButton(
             onClick = { showAddManualDebtGeneralDialog = true },
             icon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(20.dp)) },
             text = { Text("إضافة دين جديد", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = Color(0xFF121212),
+            containerColor = Color(0xFFF44336),
+            contentColor = Color.White,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
                 .shadow(
-                    elevation = 10.dp,
+                    elevation = 16.dp,
                     shape = RoundedCornerShape(16.dp),
                     clip = false,
-                    ambientColor = MaterialTheme.colorScheme.primary,
-                    spotColor = MaterialTheme.colorScheme.primary
+                    ambientColor = Color(0xFFF44336),
+                    spotColor = Color(0xFFF44336)
+                )
+                .border(
+                    BorderStroke(1.5.dp, Color(0xFFFF8A80).copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(16.dp)
                 )
         )
     }
@@ -756,8 +901,9 @@ fun CustomerDebtRow(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+        border = BorderStroke(1.dp, Color(0xFF1C1C1C))
     ) {
         Row(
             modifier = Modifier
@@ -770,13 +916,15 @@ fun CustomerDebtRow(
                 Text(
                     text = customer.name,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp
+                    fontSize = 15.sp,
+                    color = Color.White
                 )
                 if (!customer.phone.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "الهاتف: ${customer.phone}",
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Color(0xFF8A8A8A)
                     )
                 }
             }
@@ -785,13 +933,14 @@ fun CustomerDebtRow(
                 Text(
                     text = "صافي الدين المستحق:",
                     fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFF8A8A8A)
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = String.format("%.2f د.ت", customer.totalDebt),
                     fontWeight = FontWeight.Black,
                     fontSize = 16.sp,
-                    color = if (customer.totalDebt > 0) MaterialTheme.colorScheme.error else Color(0xFF1B5E20)
+                    color = if (customer.totalDebt > 0) Color(0xFFF44336) else Color(0xFF4CAF50)
                 )
             }
         }
@@ -1170,28 +1319,12 @@ fun StockAlertsTab(viewModel: PosViewModel) {
     val alerts by viewModel.lowStockProducts.collectAsState()
 
     if (alerts.isEmpty()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = Color(0xFF1B5E20),
-                    modifier = Modifier.size(54.dp)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "كل شىء على ما يرام! لا يوجد أي منتج قارب على النفاد والمخزن ممتلئ بسلام.",
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
-                )
-            }
-        }
+        EmptyStateRow(
+            icon = Icons.Default.CheckCircle,
+            title = "مستوى المخازن سليم بالكامل",
+            description = "كل شيء على ما يرام! لا توجد منتجات منخفضة المخزون حالياً والمستودع مؤمن بالكامل بسلام.",
+            accentColor = Color(0xFF4CAF50)
+        )
     } else {
         Column(modifier = Modifier.fillMaxSize()) {
             // Notice Banner

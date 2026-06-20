@@ -5,7 +5,11 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,7 +20,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -42,117 +49,189 @@ fun MainScreen(
     // Dialog state for backup protection
     var showBackupDialog by remember { mutableStateOf(false) }
 
-
-
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 navigationIcon = {
-                    // Portal button to access the Intelligent AI Advisor, styled as a modern interactive circular badge with elevation
-                    Card(
+                    IconButton(
                         onClick = {
                             selectedTab = if (selectedTab == 3) 0 else 3
                         },
-                        shape = CircleShape,
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (selectedTab == 3) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                         modifier = Modifier
                             .padding(start = 12.dp)
-                            .size(38.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = "المستشار الذكي",
-                                tint = if (selectedTab == 3) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                            .size(36.dp)
+                            .background(
+                                color = if (selectedTab == 3) Color(0xFFE040FB).copy(alpha = 0.15f) else Color.Transparent,
+                                shape = CircleShape
                             )
-                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "المستشار الذكي",
+                            tint = if (selectedTab == 3) Color(0xFFE040FB) else Color(0xFF8A8A8A),
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 },
                 title = {
                     Text(
                         text = "Prime Ledger",
-                        fontWeight = FontWeight.Black,
-                        fontSize = 19.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
                         letterSpacing = 1.sp,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = Color(0xFF00E5FF),
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = Shadow(
+                                color = Color(0xFF00E5FF).copy(alpha = 0.4f),
+                                offset = Offset(0f, 0f),
+                                blurRadius = 12f
+                            )
+                        ),
                         textAlign = TextAlign.Center
                     )
                 },
                 actions = {
-                    // "تبديل المظهر الليلي والنهاري" Switcher Button
-                    val isDarkThemeNow = MaterialTheme.colorScheme.background == androidx.compose.ui.graphics.Color(0xFF121212)
                     IconButton(
-                        onClick = onThemeToggle
+                        onClick = onThemeToggle,
+                        modifier = Modifier.size(36.dp)
                     ) {
+                        val isDarkThemeNow = MaterialTheme.colorScheme.background == Color(0xFF000000)
                         Icon(
                             imageVector = if (isDarkThemeNow) Icons.Default.DarkMode else Icons.Default.WbSunny,
                             contentDescription = "تبديل المظهر",
-                            tint = Color(0xFF00E5FF)
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
 
-                    // "حماية البيانات" (Data Backup) Button with Premium Minimalist Shield Icon
-                    TextButton(
+                    Card(
                         onClick = { showBackupDialog = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF1B5E20).copy(alpha = 0.15f),
+                            contentColor = Color(0xFF4CAF50)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFF4CAF50).copy(alpha = 0.3f)),
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .height(32.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Icon(
                                 Icons.Default.Shield,
                                 contentDescription = "حماية البيانات",
-                                modifier = Modifier.size(18.dp)
-                              )
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(14.dp)
+                            )
                             Text(
                                 "حماية البيانات",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center
+                                color = Color(0xFF4CAF50)
                             )
                         }
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    containerColor = Color(0xFF0C0C0C)
                 )
             )
         },
         bottomBar = {
-            NavigationBar(
-                tonalElevation = 6.dp
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars),
+                color = Color(0xFF000000)
             ) {
-                // Tab 1: Selling POS (perfect horizontal and center aligned wide items)
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.PointOfSale, contentDescription = "شاشة البيع") },
-                    label = { Text("شاشة البيع", fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
-                )
-
-                // Tab 2: Inventory
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Inventory2, contentDescription = "المنتجات والمخزن") },
-                    label = { Text("المنتجات والمخازن", fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
-                )
-
-                // Tab 3: Reports & Accounts
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = "التقارير") },
-                    label = { Text("التقارير المالية", fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .background(Color(0xFF0D0D0D), shape = RoundedCornerShape(20.dp))
+                        .padding(vertical = 8.dp, horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val tabs = listOf(
+                        Triple(0, Icons.Default.PointOfSale, "شاشة البيع"),
+                        Triple(1, Icons.Default.Inventory2, "المخازن"),
+                        Triple(2, Icons.Default.BarChart, "التقارير")
+                    )
+                    
+                    tabs.forEach { (tabIndex, icon, label) ->
+                        val isSelected = selectedTab == tabIndex
+                        val activeTabColor = when (tabIndex) {
+                            0 -> Color(0xFF4CAF50) // Emerald Green for sales
+                            1 -> Color(0xFFFF9800) // Amber for inventory
+                            2 -> Color(0xFFE040FB) // Fuchsia/Purple for reports
+                            else -> Color(0xFF8A8A8A)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { selectedTab = tabIndex }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                AnimatedVisibility(
+                                    visible = isSelected,
+                                    enter = scaleIn() + fadeIn(),
+                                    exit = scaleOut() + fadeOut()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .background(Color(0xFF171717), shape = RoundedCornerShape(12.dp))
+                                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = label,
+                                            tint = activeTabColor,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = label,
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                
+                                if (!isSelected) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = label,
+                                        tint = Color(0xFF8A8A8A),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = label,
+                                        color = Color(0xFF8A8A8A),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     ) { innerPadding ->

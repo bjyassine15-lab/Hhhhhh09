@@ -3,6 +3,13 @@ package com.example.ui.screens
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -61,68 +68,81 @@ fun AiAdvisorScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .background(MaterialTheme.colorScheme.surface)
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF000000),
+                        Color(0xFF070C10),
+                        Color(0xFF020406)
+                    )
+                )
+            )
     ) {
-        // AI ADVISOR SUB-HEADER
+        // AI ADVISOR SUB-HEADER (Redesigned glassmorphic premium card with soft glow)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(14.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                containerColor = Color(0xFF121212)
             ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(24.dp),
+            border = BorderStroke(1.dp, Color(0xFF1C1C1C))
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp),
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
+                    // Glowing purple spark icon (No white/plain circle background as requested)
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
+                        tint = Color(0xFFE040FB),
+                        modifier = Modifier.size(28.dp)
                     )
                     Column {
                         Text(
-                            text = "المستشار المالي الذكي (Gemini)",
+                            text = "(Gemini) المستشار المالي الذكي",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                            fontSize = 14.sp,
+                            color = Color.White
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "مستشارك المحاسبي لتحليل الأرباح والديون فورياً",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                            color = Color(0xFF8A8A8A)
                         )
                     }
                 }
 
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Preview shared store stats
                     IconButton(
                         onClick = { showContextPreviewDialog = true },
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.primary
+                            containerColor = Color(0xFF171717),
+                            contentColor = Color(0xFFE040FB)
                         ),
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color(0xFF171717), RoundedCornerShape(10.dp))
                     ) {
                         Icon(
                             Icons.Default.QueryStats,
                             contentDescription = "ملخص البيانات",
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
 
@@ -133,15 +153,17 @@ fun AiAdvisorScreen(
                             Toast.makeText(context, "تم مسح المحادثة وتصفير القناة", Toast.LENGTH_SHORT).show()
                         },
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
-                            contentColor = MaterialTheme.colorScheme.error
+                            containerColor = Color(0xFF171717),
+                            contentColor = Color(0xFFF44336)
                         ),
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color(0xFF171717), RoundedCornerShape(10.dp))
                     ) {
                         Icon(
                             Icons.Default.DeleteSweep,
                             contentDescription = "مسح المحادثة",
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
 
@@ -149,15 +171,17 @@ fun AiAdvisorScreen(
                     IconButton(
                         onClick = { showSettingsDialog = true },
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            contentColor = MaterialTheme.colorScheme.primary
+                            containerColor = Color(0xFF171717),
+                            contentColor = Color(0xFFE040FB)
                         ),
-                        modifier = Modifier.size(34.dp)
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(Color(0xFF171717), RoundedCornerShape(10.dp))
                     ) {
                         Icon(
                             Icons.Default.Settings,
                             contentDescription = "إعدادات المفتاح",
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -169,10 +193,10 @@ fun AiAdvisorScreen(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 14.dp)
         ) {
             if (chatMessages.isEmpty()) {
-                // Empty Welcome Screen with starter prompts
+                // Empty Welcome Screen with starter prompts (Perfectly balanced and centered screen)
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -180,38 +204,52 @@ fun AiAdvisorScreen(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Psychology,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                        modifier = Modifier.size(80.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // Modern glowing AI Symbol in center with subtle background glow ring
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .background(Color(0xFFE040FB).copy(alpha = 0.05f), CircleShape)
+                            .border(1.dp, Color(0xFFE040FB).copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = Color(0xFFE040FB),
+                            modifier = Modifier.size(46.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(28.dp))
+
                     Text(
                         text = "مرحباً بك في مستشارك المالي الذكي!",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = Color.White,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     Text(
                         text = "يمكنك سؤالي فورياً عن مبيعات متجرك، الديون العالقة، توقع الأرباح الكامنة أو طلب نصائح لترشيد وتدبير الكريدي والديون.",
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = Color(0xFF8A8A8A),
                         textAlign = TextAlign.Center,
-                        lineHeight = 18.sp,
+                        lineHeight = 20.sp,
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
+
                     Text(
                         text = "أسئلة مقترحة سريعة:",
-                        fontSize = 11.sp,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = Color(0xFFE040FB),
+                        modifier = Modifier.padding(bottom = 12.dp)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
 
                     val suggestions = listOf(
                         "كيف ترى الوضع المالي الحالي لمتجري بناءً على أرقامي؟",
@@ -220,21 +258,28 @@ fun AiAdvisorScreen(
                     )
 
                     suggestions.forEach { prompt ->
-                        OutlinedButton(
+                        Card(
                             onClick = {
                                 inputPromptText = prompt
                             },
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(16.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(vertical = 6.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFF121212)
+                            ),
+                            border = BorderStroke(1.dp, Color(0xFF1C1C1C))
                         ) {
                             Text(
                                 text = prompt,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 textAlign = TextAlign.Center,
-                                lineHeight = 16.sp
+                                lineHeight = 18.sp,
+                                color = Color.White,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
                             )
                         }
                     }
@@ -262,13 +307,13 @@ fun AiAdvisorScreen(
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
                                     strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = Color(0xFFE040FB)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "جاري تحليل الحسابات وتركيب الرد المالي الخاص بك...",
                                     fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = Color(0xFF8A8A8A)
                                 )
                             }
                         }
@@ -277,22 +322,25 @@ fun AiAdvisorScreen(
             }
         }
 
-        // BOTTOM TYPING BAR
+        // BOTTOM TYPING BAR (Larger, rounded with modern send icon and layout)
         Surface(
-            tonalElevation = 4.dp,
-            modifier = Modifier.fillMaxWidth()
+            tonalElevation = 8.dp,
+            color = Color(0xFF0C0C0C),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, Color(0xFF161616)))
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedTextField(
                     value = inputPromptText,
                     onValueChange = { inputPromptText = it },
-                    placeholder = { Text("أدخل سؤالك المالي هنا...", fontSize = 13.sp) },
+                    placeholder = { Text("أدخل سؤالك المالي هنا...", fontSize = 13.sp, color = Color(0xFF8A8A8A)) },
                     singleLine = true,
                     maxLines = 1,
                     keyboardOptions = KeyboardOptions(
@@ -305,14 +353,21 @@ fun AiAdvisorScreen(
                                 inputPromptText = ""
                                 focusManager.clearFocus()
                                 viewModel.sendPromptToAi(text, context)
-                            }
+                             }
                         }
                     ),
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp),
+                    shape = RoundedCornerShape(26.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        focusedBorderColor = Color(0xFFE040FB),
+                        unfocusedBorderColor = Color(0xFF222222),
+                        focusedContainerColor = Color(0xFF121212),
+                        unfocusedContainerColor = Color(0xFF121212),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        cursorColor = Color(0xFFE040FB)
                     )
                 )
 
@@ -327,10 +382,10 @@ fun AiAdvisorScreen(
                     },
                     enabled = inputPromptText.isNotBlank() && !isLoading,
                     colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        disabledContainerColor = MaterialTheme.colorScheme.outlineVariant,
-                        contentColor = MaterialTheme.colorScheme.onPrimary,
-                        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        containerColor = Color(0xFFE040FB),
+                        disabledContainerColor = Color(0xFF1C1C1C),
+                        contentColor = Color.Black,
+                        disabledContentColor = Color(0xFF555555)
                     ),
                     modifier = Modifier.size(46.dp)
                 ) {

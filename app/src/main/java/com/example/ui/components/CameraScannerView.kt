@@ -351,7 +351,7 @@ fun ScannerOverlay(modifier: Modifier = Modifier) {
                 size = Size(canvasWidth - (left + boxWidth), boxHeight)
             )
 
-            val cyberCyan = Color(0xFF00E5FF)
+            val cyberCyan = Color(0xFF4CAF50)
 
             // Draw a beautiful bright border around the scanning window
             drawRoundRect(

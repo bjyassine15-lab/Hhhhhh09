@@ -13,51 +13,32 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme =
   darkColorScheme(
-    primary = Color(0xFF00E5FF),            // Cyber Cyan primary
-    onPrimary = Color(0xFF121212),          // High-contrast deep primary text
-    primaryContainer = Color(0xFF1E1E1E),   // Night Gray card_background
-    onPrimaryContainer = Color(0xFFE0E0E0), // Comfortable white text
-    inversePrimary = Color(0xFF121212),
-    secondary = Color(0xFFB0B0B0),
-    onSecondary = Color(0xFF121212),
-    secondaryContainer = Color(0xFF2D2D2D), // Accent panels
-    onSecondaryContainer = Color(0xFFE0E0E0),
-    tertiary = Color(0xFF03DAC6),
-    onTertiary = Color(0xFF121212),
-    tertiaryContainer = Color(0xFF1E1E1E),
-    onTertiaryContainer = Color(0xFFE0E0E0),
-    background = Color(0xFF121212),         // Charcoal Black background
-    onBackground = Color(0xFFE0E0E0),       // Comfortable white text
-    surface = Color(0xFF1E1E1E),            // Night Gray card surface
-    onSurface = Color(0xFFE0E0E0),
-    surfaceVariant = Color(0xFF2D2D2D),     // Accent panels
-    onSurfaceVariant = Color(0xFFB0B0B0),
-    surfaceTint = Color(0xFF121212)         // Prevent default purple surfaceTint
+    primary = CyberPrimary,
+    onPrimary = Color(0xFF000000),
+    primaryContainer = CyberCard3,
+    onPrimaryContainer = CyberTextPrimary,
+    inversePrimary = CyberSecondary,
+    secondary = CyberSecondary,
+    onSecondary = Color(0xFF000000),
+    secondaryContainer = CyberBackgroundSecondary,
+    onSecondaryContainer = CyberTextSecondary,
+    tertiary = CyberSuccess,
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = CyberCard1,
+    onTertiaryContainer = CyberTextSecondary,
+    background = CyberBackground,
+    onBackground = CyberTextPrimary,
+    surface = CyberCard1,
+    onSurface = CyberTextPrimary,
+    surfaceVariant = CyberCard2,
+    onSurfaceVariant = CyberTextSecondary,
+    surfaceTint = CyberBackground,
+    error = CyberDanger,
+    onError = Color(0xFFFFFFFF),
+    outline = CyberTextHint
   )
 
-private val LightColorScheme =
-  darkColorScheme(                          // Force Dark palette even in Light configuration to lock the theme
-    primary = Color(0xFF00E5FF),
-    onPrimary = Color(0xFF121212),
-    primaryContainer = Color(0xFF1E1E1E),
-    onPrimaryContainer = Color(0xFFE0E0E0),
-    inversePrimary = Color(0xFF121212),
-    secondary = Color(0xFFB0B0B0),
-    onSecondary = Color(0xFF121212),
-    secondaryContainer = Color(0xFF2D2D2D),
-    onSecondaryContainer = Color(0xFFE0E0E0),
-    tertiary = Color(0xFF03DAC6),
-    onTertiary = Color(0xFF121212),
-    tertiaryContainer = Color(0xFF1E1E1E),
-    onTertiaryContainer = Color(0xFFE0E0E0),
-    background = Color(0xFF121212),
-    onBackground = Color(0xFFE0E0E0),
-    surface = Color(0xFF1E1E1E),
-    onSurface = Color(0xFFE0E0E0),
-    surfaceVariant = Color(0xFF2D2D2D),
-    onSurfaceVariant = Color(0xFFB0B0B0),
-    surfaceTint = Color(0xFF121212)
-  )
+private val LightColorScheme = DarkColorScheme
 
 @Composable
 fun MyApplicationTheme(

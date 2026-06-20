@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +38,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.geometry.Offset
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,7 +158,15 @@ fun PosScreen(
                         end.linkTo(parent.end)
                         height = Dimension.fillToConstraints
                     }
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF000000),
+                                Color(0xFF070C10),
+                                Color(0xFF020406)
+                            )
+                        )
+                    )
             ) {
                 CartHeader(
                     cartItemsCount = cartItems.sumOf { it.quantity },
@@ -283,7 +295,15 @@ fun PosScreen(
                         width = Dimension.fillToConstraints
                         height = Dimension.fillToConstraints
                     }
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF000000),
+                                Color(0xFF070C10),
+                                Color(0xFF020406)
+                            )
+                        )
+                    )
             ) {
                 CartHeader(
                     cartItemsCount = cartItems.sumOf { it.quantity },
@@ -417,15 +437,16 @@ fun CartItemRow(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, Color(0xFF1C1C1C)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Image Preview (Local Path)
@@ -435,9 +456,10 @@ fun CartItemRow(
 
             Box(
                 modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF171717))
+                    .border(1.dp, Color(0xFF1C1C1C), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (!item.product.imagePath.isNullOrEmpty()) {
@@ -451,39 +473,44 @@ fun CartItemRow(
                     Icon(
                         Icons.Default.Image,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        tint = Color(0xFF8A8A8A).copy(alpha = 0.5f)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
             // Text Info Columns
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.product.name,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    color = Color.White,
+                    fontSize = 15.sp,
                     maxLines = 1
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = String.format("سعر القطعة: %.2f د.ت", item.product.salePrice),
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color(0xFFC7C7C7)
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = String.format("المجموع: %.2f د.ت", item.totalAmount),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF4CAF50)
                 )
             }
 
             // Quantity adjust controllers (Compact)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .background(Color(0xFF171717), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
                 IconButton(
                     onClick = onDecrement,
@@ -492,17 +519,17 @@ fun CartItemRow(
                     Icon(
                         Icons.Default.Remove,
                         contentDescription = "أنقص الكمية",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(14.dp)
                     )
                 }
 
                 Text(
                     text = item.quantity.toString(),
-                    fontSize = 14.sp,
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.widthIn(min = 20.dp)
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
                 )
 
                 IconButton(
@@ -511,25 +538,26 @@ fun CartItemRow(
                 ) {
                     Icon(
                         Icons.Default.Add,
-                        contentDescription = "أضف قطة",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(16.dp)
+                        contentDescription = "زد الكمية",
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(14.dp)
                     )
                 }
+            }
 
-                Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(6.dp))
 
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "حذف الكل",
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+            // Delete item button
+            IconButton(
+                onClick = onDelete,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "حذف",
+                    tint = Color(0xFFF44336).copy(alpha = 0.8f),
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }
@@ -860,70 +888,80 @@ fun CartHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .shadow(
-                    elevation = 4.dp,
-                    shape = RoundedCornerShape(12.dp),
-                    clip = false
-                )
-                .background(
-                    color = Color(0xFF1E1E1E),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .padding(horizontal = 14.dp, vertical = 8.dp)
+        // Redesigned premium card for shopping cart header
+        Card(
+            modifier = Modifier,
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, Color(0xFF1E1E1E))
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ShoppingCart,
+                    contentDescription = null,
+                    tint = Color(0xFF4CAF50),
+                    modifier = Modifier.size(20.dp)
+                )
                 Text(
                     text = "سلة المشتريات",
-                    color = Color(0xFFE0E0E0),
-                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
+
+                // Elegant Count Badge with custom neon/glow border
                 Box(
                     modifier = Modifier
-                        .padding(start = 10.dp)
-                        .size(28.dp)
                         .background(
-                            color = Color(0xFF000000),
-                            shape = CircleShape
-                        ),
+                            color = Color(0xFF4CAF50).copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        .border(1.dp, Color(0xFF4CAF50).copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = cartItemsCount.toString(),
-                        color = Color(0xFF00E5FF),
+                        text = "$cartItemsCount قطعة",
+                        color = Color(0xFF4CAF50),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        fontSize = 11.sp
                     )
                 }
             }
         }
 
         if (!isCameraVisible) {
-            Button(
+            // "Scan Barcode" became a beautiful Outlined Button with professional styling and green accents
+            OutlinedButton(
                 onClick = onOpenCamera,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                colors = ButtonDefaults.outlinedButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = Color(0xFF4CAF50)
                 ),
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                border = BorderStroke(1.5.dp, Color(0xFF4CAF50).copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(14.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.QrCodeScanner,
                     contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(18.dp),
+                    tint = Color(0xFF4CAF50)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "مسح الباركود",
+                    text = "قراءة الباركود",
                     fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
             }
         }
@@ -934,23 +972,44 @@ fun CartHeader(
 fun EmptyCartView() {
     Box(
         modifier = Modifier
-            .fillMaxSize(),
+            .fillMaxSize()
+            .padding(24.dp),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.ShoppingCart,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.size(64.dp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .background(Color(0xFF4CAF50).copy(alpha = 0.05f), CircleShape)
+                    .border(1.dp, Color(0xFF4CAF50).copy(alpha = 0.15f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.ShoppingCart,
+                    contentDescription = null,
+                    tint = Color(0xFF4CAF50),
+                    modifier = Modifier.size(46.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "سلة البيع فارغة حالياً",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "السلة فارغة. قم بمسح الرمز التعريفي للمنتج بالكاميرا لإضافته مباشرة",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 13.sp,
+                text = "قم بمسح الباركود التعريفي للقطع بالكاميرا أو إضافتها لعملية محاسبة فورية سريعة.",
+                color = Color(0xFF8A8A8A),
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 32.dp)
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
     }
@@ -985,69 +1044,79 @@ fun CheckoutBottomBar(
 ) {
     val context = LocalContext.current
     Column {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(color = Color(0xFF1C1C1C))
         Surface(
-            tonalElevation = 6.dp,
+            tonalElevation = 0.dp,
+            color = Color(0xFF000000),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(12.dp)
+                    .padding(16.dp)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp),
+                        .padding(bottom = 12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = "الإجمالي المستحق:",
                         style = MaterialTheme.typography.titleMedium,
+                        color = Color(0xFFC7C7C7),
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         text = String.format("%.2f د.ت", totalAmount),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        color = Color(0xFF4CAF50),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = Shadow(
+                                color = Color(0xFF4CAF50).copy(alpha = 0.3f),
+                                offset = Offset(0f, 0f),
+                                blurRadius = 6f
+                            )
+                        )
                     )
                 }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
                         onClick = onSettleCash,
-                        modifier = Modifier.weight(1.2f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(vertical = 12.dp)
+                        modifier = Modifier.weight(1.2f).height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = null)
+                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.Black)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "إنهاء البيع (نقداً)",
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
                         )
                     }
 
                     Button(
                         onClick = onSettleDebt,
-                        modifier = Modifier.weight(0.8f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(vertical = 12.dp)
+                        modifier = Modifier.weight(0.8f).height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF121212)),
+                        border = BorderStroke(1.dp, Color(0xFF1C1C1C)),
+                        shape = RoundedCornerShape(14.dp)
                     ) {
-                        Icon(Icons.Default.Person, contentDescription = null)
+                        Icon(Icons.Default.Person, contentDescription = null, tint = Color(0xFFC7C7C7))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "الكريدي (ديون)",
                             fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFFFFF)
                         )
                     }
                 }

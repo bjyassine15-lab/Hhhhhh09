@@ -2,18 +2,26 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Modern Deep Charcoal / Slate Black Premium Palette (Dark Mode)
-val FinDarkPrimary = Color(0xFF00E5FF)       // Light blue/turquoise accent for branding & controls
-val FinDarkSecondary = Color(0xFFB0B0B0)     // White-grey for texts & secondary indicators
-val FinDarkTertiary = Color(0xFF03DAC6)      // Turquoise fallback (completely removing purple/violet)
-val FinDarkBackground = Color(0xFF121212)    // deep anthracite night background
-val FinDarkSurface = Color(0xFF1E1E1E)       // elegant neutral dark card surface
-val FinDarkSurfaceVariant = Color(0xFF2D2D2D) // dark panel variant
+// Cyber Minimal Premium Dark Palette
+val CyberPrimary = Color(0xFF00E5FF)            // Cyan Accent
+val CyberSecondary = Color(0xFF00B8D4)          // Cyan Secondary Accent
+val CyberBackground = Color(0xFF000000)         // Pure Black background
+val CyberBackgroundSecondary = Color(0xFF0D0D0D)// Dark gray backdrop
+val CyberCard1 = Color(0xFF121212)              // Card Background 1
+val CyberCard2 = Color(0xFF171717)              // Card Background 2
+val CyberCard3 = Color(0xFF1C1C1C)              // Card Background 3
+val CyberTextPrimary = Color(0xFFFFFFFF)        // Main Text White
+val CyberTextSecondary = Color(0xFFC7C7C7)      // Secondary Text Light Gray
+val CyberTextHint = Color(0xFF8A8A8A)           // Description/Hint Text
+val CyberSuccess = Color(0xFF4CAF50)            // Success Green
+val CyberWarning = Color(0xFFFFC107)            // Warning Yellow
+val CyberDanger = Color(0xFFF44336)             // Danger/Error Red
 
-// Modern Professional Financial Palette (Light Mode)
-val FinLightPrimary = Color(0xFF2563EB)      // Deep Electric Blue
-val FinLightSecondary = Color(0xFF475569)    // Elegant slate steel gray
-val FinLightTertiary = Color(0xFF059669)     // Rich financial emerald green
-val FinLightBackground = Color(0xFFF1F5F9)   // Professional slate off-white backdrop
-val FinLightSurface = Color(0xFFFFFFFF)      // Pure card white
-val FinLightSurfaceVariant = Color(0xFFE2E8F0)// Light gray panel surface
+// Legacy mapping support for compatibility
+val FinDarkPrimary = CyberPrimary
+val FinDarkSecondary = CyberTextSecondary
+val FinDarkTertiary = CyberSecondary
+val FinDarkBackground = CyberBackground
+val FinDarkSurface = CyberCard1
+val FinDarkSurfaceVariant = CyberCard2
+
