@@ -22,7 +22,9 @@ data class OFFProduct(
     val product_name_en: String? = null,
     val image_url: String? = null,
     val image_front_url: String? = null,
-    val image_small_url: String? = null
+    val image_small_url: String? = null,
+    val brands: String? = null,
+    val quantity: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -69,16 +71,40 @@ object OpenFoodFactsService {
         try {
             val response = api.getProduct(barcode)
             if (response.status == 1 && response.product != null) {
-                val name = response.product.product_name_ar?.takeIf { it.isNotBlank() }
+                val baseName = response.product.product_name_ar?.takeIf { it.isNotBlank() }
                     ?: response.product.product_name?.takeIf { it.isNotBlank() }
                     ?: response.product.product_name_fr?.takeIf { it.isNotBlank() }
                     ?: response.product.product_name_en?.takeIf { it.isNotBlank() }
                 
+                val brand = response.product.brands?.takeIf { it.isNotBlank() }
+                val qty = response.product.quantity?.takeIf { it.isNotBlank() }
+
+                val mergedName = buildString {
+                    if (brand != null) {
+                        append(brand)
+                    }
+                    if (baseName != null) {
+                        if (isNotEmpty()) {
+                            append(" - ")
+                        }
+                        append(baseName)
+                    }
+                    if (qty != null) {
+                        if (isNotEmpty()) {
+                            append(" (")
+                            append(qty)
+                            append(")")
+                        } else {
+                            append(qty)
+                        }
+                    }
+                }.takeIf { it.isNotBlank() }
+
                 val img = response.product.image_url?.takeIf { it.isNotBlank() }
                     ?: response.product.image_front_url?.takeIf { it.isNotBlank() }
                     ?: response.product.image_small_url?.takeIf { it.isNotBlank() }
                 
-                ProductOnlineData(name, img)
+                ProductOnlineData(mergedName, img)
             } else {
                 null
             }
