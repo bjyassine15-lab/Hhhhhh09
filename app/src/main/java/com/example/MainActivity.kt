@@ -50,7 +50,10 @@ class MainActivity : ComponentActivity() {
                     onThemeToggle = {
                         val nextMode = if (isDarkThemeNow) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
                         getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE).edit().putInt("night_mode_state", nextMode).apply()
-                        AppCompatDelegate.setDefaultNightMode(nextMode)
+                        // Update currentThemeMode directly.
+                        // By not calling AppCompatDelegate.setDefaultNightMode(nextMode) runtime,
+                        // we completely avoid jarring activity recreation & hard flashing,
+                        // allowing our 400ms alpha-crossfade animation in MyApplicationTheme to play seamlessly!
                         currentThemeMode = nextMode
                     }
                 )

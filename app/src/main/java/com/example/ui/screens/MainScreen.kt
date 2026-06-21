@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -189,15 +190,17 @@ fun MainScreen(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                AnimatedVisibility(
-                                    visible = isSelected,
-                                    enter = scaleIn() + fadeIn(),
-                                    exit = scaleOut() + fadeOut()
-                                ) {
+                            AnimatedContent(
+                                targetState = isSelected,
+                                transitionSpec = {
+                                    (fadeIn(animationSpec = tween(220, delayMillis = 40)) + 
+                                     scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 40)))
+                                        .togetherWith(fadeOut(animationSpec = tween(140)) + 
+                                                      scaleOut(targetScale = 0.92f, animationSpec = tween(140)))
+                                },
+                                label = "tab_transition"
+                            ) { selected ->
+                                if (selected) {
                                     Row(
                                         modifier = Modifier
                                             .background(Color(0xFF171717), shape = RoundedCornerShape(12.dp))
@@ -225,28 +228,31 @@ fun MainScreen(
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
-                                }
-                                
-                                if (!isSelected) {
-                                    if (tabIndex == 2) {
-                                        ColoredBarChartIcon(
-                                            modifier = Modifier.size(20.dp),
-                                            isSelected = false
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = label,
-                                            tint = Color(0xFF8A8A8A),
-                                            modifier = Modifier.size(20.dp)
+                                } else {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        if (tabIndex == 2) {
+                                            ColoredBarChartIcon(
+                                                modifier = Modifier.size(20.dp),
+                                                isSelected = false
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = label,
+                                                tint = Color(0xFF8A8A8A),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = label,
+                                            color = Color(0xFF8A8A8A),
+                                            fontSize = 10.sp
                                         )
                                     }
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = label,
-                                        color = Color(0xFF8A8A8A),
-                                        fontSize = 10.sp
-                                    )
                                 }
                             }
                         }
