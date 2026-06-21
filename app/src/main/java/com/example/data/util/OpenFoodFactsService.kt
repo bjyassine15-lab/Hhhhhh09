@@ -12,12 +12,17 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
 
+import java.io.File
+
 @JsonClass(generateAdapter = true)
 data class OFFProduct(
     val product_name: String? = null,
     val product_name_ar: String? = null,
     val product_name_fr: String? = null,
-    val product_name_en: String? = null
+    val product_name_en: String? = null,
+    val image_url: String? = null,
+    val image_front_url: String? = null,
+    val image_small_url: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -25,6 +30,11 @@ data class OFFResponse(
     val status: Int? = null,
     val status_verbose: String? = null,
     val product: OFFProduct? = null
+)
+
+data class ProductOnlineData(
+    val name: String?,
+    val imageUrl: String?
 )
 
 interface OpenFoodFactsApi {
@@ -55,7 +65,7 @@ object OpenFoodFactsService {
             .create(OpenFoodFactsApi::class.java)
     }
 
-    suspend fun fetchProductName(barcode: String): String? = withContext(Dispatchers.IO) {
+    suspend fun fetchProductOnlineData(barcode: String): ProductOnlineData? = withContext(Dispatchers.IO) {
         try {
             val response = api.getProduct(barcode)
             if (response.status == 1 && response.product != null) {
@@ -63,7 +73,37 @@ object OpenFoodFactsService {
                     ?: response.product.product_name?.takeIf { it.isNotBlank() }
                     ?: response.product.product_name_fr?.takeIf { it.isNotBlank() }
                     ?: response.product.product_name_en?.takeIf { it.isNotBlank() }
-                name
+                
+                val img = response.product.image_url?.takeIf { it.isNotBlank() }
+                    ?: response.product.image_front_url?.takeIf { it.isNotBlank() }
+                    ?: response.product.image_small_url?.takeIf { it.isNotBlank() }
+                
+                ProductOnlineData(name, img)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun downloadImageToLocal(context: android.content.Context, urlString: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val url = java.net.URL(urlString)
+            val connection = url.openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 8000
+            connection.readTimeout = 8000
+            connection.doInput = true
+            connection.connect()
+            if (connection.responseCode == java.net.HttpURLConnection.HTTP_OK) {
+                val file = File(context.filesDir, "prod_img_${System.currentTimeMillis()}.jpg")
+                connection.inputStream.use { input ->
+                    file.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                file.absolutePath
             } else {
                 null
             }

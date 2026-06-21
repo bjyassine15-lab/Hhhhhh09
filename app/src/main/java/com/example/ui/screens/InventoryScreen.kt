@@ -656,10 +656,25 @@ fun AddEditProductDialog(
         isFetchingProduct = true
         coroutineScope.launch {
             try {
-                val fetchedName = com.example.data.util.OpenFoodFactsService.fetchProductName(trimmed)
-                if (fetchedName != null && fetchedName.isNotBlank()) {
-                    name = fetchedName
-                    Toast.makeText(context, "تم جلب اسم المنتج تلقائياً", Toast.LENGTH_SHORT).show()
+                val onlineData = com.example.data.util.OpenFoodFactsService.fetchProductOnlineData(trimmed)
+                if (onlineData != null) {
+                    var foundSomething = false
+                    if (!onlineData.name.isNullOrBlank()) {
+                        name = onlineData.name
+                        foundSomething = true
+                    }
+                    if (!onlineData.imageUrl.isNullOrBlank()) {
+                        val localPath = com.example.data.util.OpenFoodFactsService.downloadImageToLocal(context, onlineData.imageUrl)
+                        if (localPath != null) {
+                            capturedImagePath = localPath
+                            foundSomething = true
+                        }
+                    }
+                    if (foundSomething) {
+                        Toast.makeText(context, "تم جلب بيانات المنتج تلقائياً", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "لم يتم العثور على بيانات للمنتج، يرجى كتابة الاسم يدوياً", Toast.LENGTH_LONG).show()
+                    }
                 } else {
                     Toast.makeText(context, "لم يتم العثور على بيانات للمنتج، يرجى كتابة الاسم يدوياً", Toast.LENGTH_LONG).show()
                 }

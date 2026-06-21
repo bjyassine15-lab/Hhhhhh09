@@ -57,6 +57,9 @@ fun AiAdvisorScreen(
     var showContextPreviewDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
 
+    val isDark = MaterialTheme.colorScheme.background != Color(0xFFF4F6F9)
+    val buttonBg = if (isDark) Color(0xFF171717) else Color(0xFFF1F5F9)
+
     // Scroll to bottom when a new message arrives
     LaunchedEffect(chatMessages.size) {
         if (chatMessages.isNotEmpty()) {
@@ -68,15 +71,7 @@ fun AiAdvisorScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF000000),
-                        Color(0xFF070C10),
-                        Color(0xFF020406)
-                    )
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // AI ADVISOR SUB-HEADER (Redesigned glassmorphic premium card with soft glow)
         Card(
@@ -84,10 +79,10 @@ fun AiAdvisorScreen(
                 .fillMaxWidth()
                 .padding(14.dp),
             colors = CardDefaults.cardColors(
-                containerColor = Color(0xFF121212)
+                containerColor = if (isDark) Color(0xFF121212) else MaterialTheme.colorScheme.surface
             ),
             shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, Color(0xFF1C1C1C))
+            border = BorderStroke(1.dp, if (isDark) Color(0xFF1C1C1C) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
         ) {
             Row(
                 modifier = Modifier
@@ -113,13 +108,13 @@ fun AiAdvisorScreen(
                             text = "(Gemini) المستشار المالي الذكي",
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "مستشارك المحاسبي لتحليل الأرباح والديون فورياً",
                             fontSize = 11.sp,
-                            color = Color(0xFF8A8A8A)
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
                 }
@@ -132,12 +127,12 @@ fun AiAdvisorScreen(
                     IconButton(
                         onClick = { showContextPreviewDialog = true },
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = Color(0xFF171717),
+                            containerColor = buttonBg,
                             contentColor = Color(0xFFE040FB)
                         ),
                         modifier = Modifier
                             .size(36.dp)
-                            .background(Color(0xFF171717), RoundedCornerShape(10.dp))
+                            .background(buttonBg, RoundedCornerShape(10.dp))
                     ) {
                         Icon(
                             Icons.Default.QueryStats,
@@ -153,12 +148,12 @@ fun AiAdvisorScreen(
                             Toast.makeText(context, "تم مسح المحادثة وتصفير القناة", Toast.LENGTH_SHORT).show()
                         },
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = Color(0xFF171717),
+                            containerColor = buttonBg,
                             contentColor = Color(0xFFF44336)
                         ),
                         modifier = Modifier
                             .size(36.dp)
-                            .background(Color(0xFF171717), RoundedCornerShape(10.dp))
+                            .background(buttonBg, RoundedCornerShape(10.dp))
                     ) {
                         Icon(
                             Icons.Default.DeleteSweep,
@@ -171,12 +166,12 @@ fun AiAdvisorScreen(
                     IconButton(
                         onClick = { showSettingsDialog = true },
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = Color(0xFF171717),
+                            containerColor = buttonBg,
                             contentColor = Color(0xFFE040FB)
                         ),
                         modifier = Modifier
                             .size(36.dp)
-                            .background(Color(0xFF171717), RoundedCornerShape(10.dp))
+                            .background(buttonBg, RoundedCornerShape(10.dp))
                     ) {
                         Icon(
                             Icons.Default.Settings,
@@ -226,7 +221,7 @@ fun AiAdvisorScreen(
                         text = "مرحباً بك في مستشارك المالي الذكي!",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
 
@@ -235,7 +230,7 @@ fun AiAdvisorScreen(
                     Text(
                         text = "يمكنك سؤالي فورياً عن مبيعات متجرك، الديون العالقة، توقع الأرباح الكامنة أو طلب نصائح لترشيد وتدبير الكريدي والديون.",
                         fontSize = 12.sp,
-                        color = Color(0xFF8A8A8A),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         textAlign = TextAlign.Center,
                         lineHeight = 20.sp,
                         modifier = Modifier.padding(horizontal = 16.dp)
@@ -267,16 +262,16 @@ fun AiAdvisorScreen(
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = Color(0xFF121212)
+                                containerColor = if (isDark) Color(0xFF121212) else MaterialTheme.colorScheme.surface
                             ),
-                            border = BorderStroke(1.dp, Color(0xFF1C1C1C))
+                            border = BorderStroke(1.dp, if (isDark) Color(0xFF1C1C1C) else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                         ) {
                             Text(
                                 text = prompt,
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center,
                                 lineHeight = 18.sp,
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -313,7 +308,7 @@ fun AiAdvisorScreen(
                                 Text(
                                     text = "جاري تحليل الحسابات وتركيب الرد المالي الخاص بك...",
                                     fontSize = 11.sp,
-                                    color = Color(0xFF8A8A8A)
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
                         }
@@ -325,10 +320,10 @@ fun AiAdvisorScreen(
         // BOTTOM TYPING BAR (Larger, rounded with modern send icon and layout)
         Surface(
             tonalElevation = 8.dp,
-            color = Color(0xFF0C0C0C),
+            color = MaterialTheme.colorScheme.surface,
             modifier = Modifier
                 .fillMaxWidth()
-                .border(BorderStroke(1.dp, Color(0xFF161616)))
+                .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)))
         ) {
             Row(
                 modifier = Modifier
@@ -340,7 +335,7 @@ fun AiAdvisorScreen(
                 OutlinedTextField(
                     value = inputPromptText,
                     onValueChange = { inputPromptText = it },
-                    placeholder = { Text("أدخل سؤالك المالي هنا...", fontSize = 13.sp, color = Color(0xFF8A8A8A)) },
+                    placeholder = { Text("أدخل سؤالك المالي هنا...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
                     singleLine = true,
                     maxLines = 1,
                     keyboardOptions = KeyboardOptions(
@@ -362,11 +357,11 @@ fun AiAdvisorScreen(
                     shape = RoundedCornerShape(26.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(0xFFE040FB),
-                        unfocusedBorderColor = Color(0xFF222222),
-                        focusedContainerColor = Color(0xFF121212),
-                        unfocusedContainerColor = Color(0xFF121212),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         cursorColor = Color(0xFFE040FB)
                     )
                 )
@@ -383,9 +378,9 @@ fun AiAdvisorScreen(
                     enabled = inputPromptText.isNotBlank() && !isLoading,
                     colors = IconButtonDefaults.iconButtonColors(
                         containerColor = Color(0xFFE040FB),
-                        disabledContainerColor = Color(0xFF1C1C1C),
+                        disabledContainerColor = if (isDark) Color(0xFF1C1C1C) else Color(0xFFE2E8F0),
                         contentColor = Color.Black,
-                        disabledContentColor = Color(0xFF555555)
+                        disabledContentColor = if (isDark) Color(0xFF555555) else Color(0xFF94A3B8)
                     ),
                     modifier = Modifier.size(46.dp)
                 ) {
