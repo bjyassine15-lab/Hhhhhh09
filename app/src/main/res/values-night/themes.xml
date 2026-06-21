@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MyApplication" parent="android:Theme.DeviceDefault.NoActionBar">
+        <!-- Main DayNight colors mapping for non-compose/system dialogue components in Night mode -->
+        <item name="android:colorPrimary">@color/primary_accent</item>
+        <item name="android:colorBackground">@color/background_color</item>
+        <item name="android:textColor">@color/text_color</item>
+    </style>
+</resources>

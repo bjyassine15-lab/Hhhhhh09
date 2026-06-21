@@ -375,6 +375,24 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun deleteInvoice(invoice: Invoice, onSuccess: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            posDao.deleteInvoice(invoice)
+            withContext(Dispatchers.Main) {
+                onSuccess()
+            }
+        }
+    }
+
+    fun deleteDebtPayment(payment: DebtPayment, onSuccess: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            posDao.deleteDebtPayment(payment)
+            withContext(Dispatchers.Main) {
+                onSuccess()
+            }
+        }
+    }
+
     fun getDebtPaymentsForCustomer(customerId: Long) = posDao.getDebtPaymentsForCustomer(customerId)
 
 

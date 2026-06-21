@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand colors (Premium Dark Theme - Cyber Cyan & Deep Charcoal) -->
-    <color name="background_color">#121212</color>   <!-- Charcoal black -->
-    <color name="card_background">#1E1E1E</color>    <!-- Night grey -->
+    <!-- Brand colors (Light Premium Theme) -->
+    <color name="background_color">#F4F6F9</color>   <!-- Soft light background -->
+    <color name="card_background">#FFFFFF</color>    <!-- Pristine white Card -->
     <color name="primary_accent">#00E5FF</color>     <!-- Accent Cyan -->
-    <color name="text_color">#E0E0E0</color>         <!-- Comfortable white text -->
+    <color name="text_color">#12151C</color>         <!-- Deep slate dark text -->
 </resources>

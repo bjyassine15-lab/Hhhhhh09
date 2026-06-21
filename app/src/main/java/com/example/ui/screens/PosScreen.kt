@@ -51,6 +51,25 @@ fun PosScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val rootBrush = if (isDark) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF000000),
+                Color(0xFF070C10),
+                Color(0xFF020406)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFF4F6F9),
+                Color(0xFFECEFF1),
+                Color(0xFFF4F6F9)
+            )
+        )
+    }
+
     // State collections
     val cartItems by viewModel.cartItems.collectAsState()
     val totalAmount by viewModel.cartTotal.collectAsState()
@@ -158,15 +177,7 @@ fun PosScreen(
                         end.linkTo(parent.end)
                         height = Dimension.fillToConstraints
                     }
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFF000000),
-                                Color(0xFF070C10),
-                                Color(0xFF020406)
-                            )
-                        )
-                    )
+                    .background(brush = rootBrush)
             ) {
                 CartHeader(
                     cartItemsCount = cartItems.sumOf { it.quantity },
@@ -295,15 +306,7 @@ fun PosScreen(
                         width = Dimension.fillToConstraints
                         height = Dimension.fillToConstraints
                     }
-                    .background(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(
-                                Color(0xFF000000),
-                                Color(0xFF070C10),
-                                Color(0xFF020406)
-                            )
-                        )
-                    )
+                    .background(brush = rootBrush)
             ) {
                 CartHeader(
                     cartItemsCount = cartItems.sumOf { it.quantity },
@@ -434,13 +437,20 @@ fun CartItemRow(
     onDecrement: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val cardBg = if (isDark) Color(0xFF121212) else Color(0xFFFFFFFF)
+    val cardBorder = if (isDark) Color(0xFF1C1C1C) else Color(0xFFE2E8F0)
+    val textPrimary = if (isDark) Color.White else Color(0xFF12151C)
+    val textSecondary = if (isDark) Color(0xFFC7C7C7) else Color(0xFF64748B)
+    val circleBg = if (isDark) Color(0xFF171717) else Color(0xFFF1F5F9)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF1C1C1C)),
+        border = BorderStroke(1.dp, cardBorder),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -458,8 +468,8 @@ fun CartItemRow(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF171717))
-                    .border(1.dp, Color(0xFF1C1C1C), RoundedCornerShape(12.dp)),
+                    .background(circleBg)
+                    .border(1.dp, cardBorder, RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 if (!item.product.imagePath.isNullOrEmpty()) {
@@ -473,7 +483,7 @@ fun CartItemRow(
                     Icon(
                         Icons.Default.Image,
                         contentDescription = null,
-                        tint = Color(0xFF8A8A8A).copy(alpha = 0.5f)
+                        tint = textSecondary.copy(alpha = 0.5f)
                     )
                 }
             }
@@ -485,7 +495,7 @@ fun CartItemRow(
                 Text(
                     text = item.product.name,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = textPrimary,
                     fontSize = 15.sp,
                     maxLines = 1
                 )
@@ -493,7 +503,7 @@ fun CartItemRow(
                 Text(
                     text = String.format("سعر القطعة: %.2f د.ت", item.product.salePrice),
                     fontSize = 11.sp,
-                    color = Color(0xFFC7C7C7)
+                    color = textSecondary
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -509,7 +519,8 @@ fun CartItemRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier
-                    .background(Color(0xFF171717), RoundedCornerShape(12.dp))
+                    .background(circleBg, RoundedCornerShape(12.dp))
+                    .border(1.dp, cardBorder, RoundedCornerShape(12.dp))
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
                 IconButton(
@@ -526,7 +537,7 @@ fun CartItemRow(
 
                 Text(
                     text = item.quantity.toString(),
-                    color = Color.White,
+                    color = textPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     modifier = Modifier.padding(horizontal = 4.dp)
@@ -801,7 +812,10 @@ fun DebtSettlementDialog(
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = onDismiss) {
+                        TextButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
                             Text("إلغاء", fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
@@ -812,7 +826,7 @@ fun DebtSettlementDialog(
                                 }
                             },
                             enabled = selectedCustomer != null,
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(24.dp)
                         ) {
                             Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
@@ -827,7 +841,7 @@ fun DebtSettlementDialog(
                         onValueChange = { newCustomerName = it },
                         label = { Text("اسم العميل الجديد", fontSize = 12.sp) },
                         singleLine = true,
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(12.dp),
                         textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                         modifier = Modifier.fillMaxWidth().height(52.dp)
                     )
@@ -840,7 +854,7 @@ fun DebtSettlementDialog(
                         label = { Text("الهاتف (اختياري)", fontSize = 12.sp) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(12.dp),
                         textStyle = LocalTextStyle.current.copy(fontSize = 13.sp),
                         modifier = Modifier.fillMaxWidth().height(52.dp)
                     )
@@ -852,7 +866,10 @@ fun DebtSettlementDialog(
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = onDismiss) {
+                        TextButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(24.dp)
+                        ) {
                             Text("إلغاء", fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
@@ -866,7 +883,7 @@ fun DebtSettlementDialog(
                                 }
                             },
                             enabled = newCustomerName.trim().isNotEmpty(),
-                            shape = RoundedCornerShape(8.dp)
+                            shape = RoundedCornerShape(24.dp)
                         ) {
                             Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
@@ -885,6 +902,11 @@ fun CartHeader(
     isCameraVisible: Boolean,
     onOpenCamera: () -> Unit
 ) {
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val cardBg = if (isDark) Color(0xFF121212) else Color(0xFFFFFFFF)
+    val cardBorder = if (isDark) Color(0xFF1E1E1E) else Color(0xFFE2E8F0)
+    val textPrimary = if (isDark) Color.White else Color(0xFF12151C)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -895,9 +917,9 @@ fun CartHeader(
         // Redesigned premium card for shopping cart header
         Card(
             modifier = Modifier,
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+            colors = CardDefaults.cardColors(containerColor = cardBg),
             shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, Color(0xFF1E1E1E))
+            border = BorderStroke(1.dp, cardBorder)
         ) {
             Row(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
@@ -912,7 +934,7 @@ fun CartHeader(
                 )
                 Text(
                     text = "سلة المشتريات",
-                    color = Color.White,
+                    color = textPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -961,7 +983,7 @@ fun CartHeader(
                     text = "قراءة الباركود",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = if (isDark) Color.White else Color(0xFF1E293B)
                 )
             }
         }
@@ -970,6 +992,10 @@ fun CartHeader(
 
 @Composable
 fun EmptyCartView() {
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val textPrimary = if (isDark) Color.White else Color(0xFF12151C)
+    val textSecondary = if (isDark) Color(0xFF8A8A8A) else Color(0xFF64748B)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -997,7 +1023,7 @@ fun EmptyCartView() {
             Spacer(modifier = Modifier.height(24.dp))
             Text(
                 text = "سلة البيع فارغة حالياً",
-                color = Color.White,
+                color = textPrimary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
                 textAlign = TextAlign.Center
@@ -1005,7 +1031,7 @@ fun EmptyCartView() {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "قم بمسح الباركود التعريفي للقطع بالكاميرا أو إضافتها لعملية محاسبة فورية سريعة.",
-                color = Color(0xFF8A8A8A),
+                color = textSecondary,
                 fontSize = 12.sp,
                 lineHeight = 18.sp,
                 textAlign = TextAlign.Center,
@@ -1043,11 +1069,20 @@ fun CheckoutBottomBar(
     onSettleDebt: () -> Unit
 ) {
     val context = LocalContext.current
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val dividerBg = if (isDark) Color(0xFF1C1C1C) else Color(0xFFE2E8F0)
+    val bottomBarBg = if (isDark) Color(0xFF000000) else Color(0xFFFFFFFF)
+    val textSecondary = if (isDark) Color(0xFFC7C7C7) else Color(0xFF64748B)
+
+    val settleDebtBg = if (isDark) Color(0xFF121212) else Color(0xFFF1F5F9)
+    val settleDebtColor = if (isDark) Color.White else Color(0xFF1E293B)
+    val settleDebtBorder = if (isDark) Color(0xFF1C1C1C) else Color(0xFFE2E8F0)
+
     Column {
-        HorizontalDivider(color = Color(0xFF1C1C1C))
+        HorizontalDivider(color = dividerBg)
         Surface(
             tonalElevation = 0.dp,
-            color = Color(0xFF000000),
+            color = bottomBarBg,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -1065,7 +1100,7 @@ fun CheckoutBottomBar(
                     Text(
                         text = "الإجمالي المستحق:",
                         style = MaterialTheme.typography.titleMedium,
-                        color = Color(0xFFC7C7C7),
+                        color = textSecondary,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
@@ -1106,17 +1141,17 @@ fun CheckoutBottomBar(
                     Button(
                         onClick = onSettleDebt,
                         modifier = Modifier.weight(0.8f).height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF121212)),
-                        border = BorderStroke(1.dp, Color(0xFF1C1C1C)),
+                        colors = ButtonDefaults.buttonColors(containerColor = settleDebtBg),
+                        border = BorderStroke(1.dp, settleDebtBorder),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Icon(Icons.Default.Person, contentDescription = null, tint = Color(0xFFC7C7C7))
+                        Icon(Icons.Default.Person, contentDescription = null, tint = if (isDark) Color(0xFFC7C7C7) else Color(0xFF1E293B))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             "الكريدي (ديون)",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFFFFFF)
+                            color = settleDebtColor
                         )
                     }
                 }

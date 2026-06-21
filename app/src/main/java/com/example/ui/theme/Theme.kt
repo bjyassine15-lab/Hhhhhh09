@@ -38,7 +38,32 @@ private val DarkColorScheme =
     outline = CyberTextHint
   )
 
-private val LightColorScheme = DarkColorScheme
+private val LightColorScheme =
+  lightColorScheme(
+    primary = CyberPrimary,
+    onPrimary = Color(0xFF000000),
+    primaryContainer = Color(0xFFE0F7FA),
+    onPrimaryContainer = Color(0xFF006064),
+    inversePrimary = CyberSecondary,
+    secondary = CyberSecondary,
+    onSecondary = Color(0xFF000000),
+    secondaryContainer = Color(0xFFF0F4F8),
+    onSecondaryContainer = Color(0xFF1E293B),
+    tertiary = CyberSuccess,
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFE8F5E9),
+    onTertiaryContainer = Color(0xFF1B5E20),
+    background = Color(0xFFF4F6F9), // Soft misty white/blue gray
+    onBackground = Color(0xFF12151C), // Deep slate dark text
+    surface = Color(0xFFFFFFFF), // Pristine light white card
+    onSurface = Color(0xFF12151C),
+    surfaceVariant = Color(0xFFECEFF1),
+    onSurfaceVariant = Color(0xFF37474F),
+    surfaceTint = Color(0xFFF4F6F9),
+    error = CyberDanger,
+    onError = Color(0xFFFFFFFF),
+    outline = Color(0xFFCFD8DC)
+  )
 
 @Composable
 fun MyApplicationTheme(

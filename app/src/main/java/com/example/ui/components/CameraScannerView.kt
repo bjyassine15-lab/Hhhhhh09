@@ -42,6 +42,15 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.common.Barcode
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import android.content.Context
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.window.Dialog
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 // Helper method for barcode verification (100% correct EAN-13 & EAN-8 checksum check and basic length logic)
 private fun isValidBarcode(code: String): Boolean {
@@ -80,6 +89,14 @@ fun CameraScannerView(
     onBarcodeDetected: (String, (Boolean) -> Unit) -> Unit
 ) {
     val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
+    val context = LocalContext.current
+    val sharedPrefs = remember(context) { context.getSharedPreferences("camera_settings_prefs", Context.MODE_PRIVATE) }
+    
+    var antiBlurDelay by remember { mutableStateOf(sharedPrefs.getBoolean("camera_anti_blur_delay", false)) }
+    var continuousAutofocus by remember { mutableStateOf(sharedPrefs.getBoolean("camera_continuous_autofocus", true)) }
+    var exposureIndex by remember { mutableIntStateOf(sharedPrefs.getInt("camera_exposure_index", 0)) }
+    
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         if (!cameraPermissionState.status.isGranted) {
@@ -91,10 +108,31 @@ fun CameraScannerView(
         if (cameraPermissionState.status.isGranted) {
             CameraPreviewAndScanner(
                 onBarcodeDetected = onBarcodeDetected,
+                antiBlurDelay = antiBlurDelay,
+                continuousAutofocus = continuousAutofocus,
+                exposureIndex = exposureIndex,
                 modifier = Modifier.matchParentSize()
             )
             // Beautiful scanner overlay targeting/aiming window
             ScannerOverlay(modifier = Modifier.matchParentSize())
+
+            // Professional Gear Settings Icon Floating in bottom-left corner
+            IconButton(
+                onClick = { showSettingsDialog = true },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp)
+                    .size(44.dp)
+                    .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+                    .border(1.dp, Color(0xFFFF9800), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "إعدادات الكاميرا",
+                    tint = Color(0xFFFF9800),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         } else {
             Column(
                 modifier = Modifier
@@ -121,11 +159,173 @@ fun CameraScannerView(
             }
         }
     }
+
+    if (showSettingsDialog) {
+        Dialog(onDismissRequest = { showSettingsDialog = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .border(BorderStroke(1.dp, Color(0xFF262626)), RoundedCornerShape(24.dp)),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF171717))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "إعدادات الكاميرا المتقدمة",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFF9800),
+                        fontSize = 16.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    HorizontalDivider(color = Color(0xFF262626))
+                    
+                    // Anti-blur Delay Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "التأخير المضاد للضبابية (500ms)",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "يضيف تأخيراً بسيطاً عند فتح الكاميرا لتركيز العدسة وتفادي الضبابية",
+                                color = Color(0xFF8A8A8A),
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
+                        Switch(
+                            checked = antiBlurDelay,
+                            onCheckedChange = { checked ->
+                                antiBlurDelay = checked
+                                sharedPrefs.edit().putBoolean("camera_anti_blur_delay", checked).apply()
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFFFF9800),
+                                checkedTrackColor = Color(0xFFFF9800).copy(alpha = 0.4f),
+                                uncheckedThumbColor = Color(0xFF8A8A8A),
+                                uncheckedTrackColor = Color(0xFF262626)
+                            )
+                        )
+                    }
+                    
+                    HorizontalDivider(color = Color(0xFF262626).copy(alpha = 0.5f))
+                    
+                    // Continuous Autofocus Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "التركيز التلقائي المستمر",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "إبقاء العدسة مركزة باستمرار على المنتج لمسح أسرع",
+                                color = Color(0xFF8A8A8A),
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
+                        Switch(
+                            checked = continuousAutofocus,
+                            onCheckedChange = { checked ->
+                                continuousAutofocus = checked
+                                sharedPrefs.edit().putBoolean("camera_continuous_autofocus", checked).apply()
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFFFF9800),
+                                checkedTrackColor = Color(0xFFFF9800).copy(alpha = 0.4f),
+                                uncheckedThumbColor = Color(0xFF8A8A8A),
+                                uncheckedTrackColor = Color(0xFF262626)
+                            )
+                        )
+                    }
+                    
+                    HorizontalDivider(color = Color(0xFF262626).copy(alpha = 0.5f))
+                    
+                    // Exposure compensation Slider
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "مستوى حساسية الضوء (Exposure)",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Text(
+                            text = "لتحسين الرؤية ومقاومة لمعان الأسطح والورق البلاستيكي",
+                            color = Color(0xFF8A8A8A),
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("-", color = Color(0xFF8A8A8A), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Slider(
+                                value = exposureIndex.toFloat(),
+                                onValueChange = { value ->
+                                    val index = value.roundToInt()
+                                    exposureIndex = index
+                                    sharedPrefs.edit().putInt("camera_exposure_index", index).apply()
+                                },
+                                valueRange = -4f..4f,
+                                steps = 7,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFFFF9800),
+                                    activeTrackColor = Color(0xFFFF9800),
+                                    inactiveTrackColor = Color(0xFF262626)
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text("+", color = Color(0xFF8A8A8A), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = { showSettingsDialog = false },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800), contentColor = Color.Black),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("إغلاق", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
 fun CameraPreviewAndScanner(
     onBarcodeDetected: (String, (Boolean) -> Unit) -> Unit,
+    antiBlurDelay: Boolean,
+    continuousAutofocus: Boolean,
+    exposureIndex: Int,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -164,12 +364,23 @@ fun CameraPreviewAndScanner(
     // Atomic Processing Lock so that we never send scans concurrently
     val isProcessing = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
 
-    // 1.5 seconds local scan cooldown for the EXACT same barcode
-    var lastScannedCode by remember { mutableStateOf<String?>(null) }
+    // Strict 1.5 seconds cooldown after ANY successful scan (allows users to move product away)
     var lastScannedTime by remember { mutableLongStateOf(0L) }
     val cooldownMs = 1500L
 
-    // Buffer clearing function as requested
+    // Anti-blur Delay state manager: Delays frame parsing by 500ms to let lens focus
+    var isInitialDelayOver by remember { mutableStateOf(!antiBlurDelay) }
+    LaunchedEffect(antiBlurDelay) {
+        if (antiBlurDelay) {
+            isInitialDelayOver = false
+            delay(500L)
+            isInitialDelayOver = true
+        } else {
+            isInitialDelayOver = true
+        }
+    }
+
+    // Buffer clearing function
     fun clearBarcodeBuffer() {
         Log.d("BarcodeProcessor", "Clearing scanner buffer. Ready for next scan!")
         isProcessing.set(false)
@@ -195,6 +406,43 @@ fun CameraPreviewAndScanner(
                 }
             } catch (exc: Exception) {
                 Log.e("CameraPreviewAndScanner", "Failed to unbind camera provider on dispose", exc)
+            }
+        }
+    }
+
+    // Capture reference to bind focus/exposure dynamically
+    var cameraControl by remember { mutableStateOf<CameraControl?>(null) }
+    var minExposure by remember { mutableIntStateOf(-4) }
+    var maxExposure by remember { mutableIntStateOf(4) }
+    var isExposureSupported by remember { mutableStateOf(false) }
+
+    // Dynamically apply Exposure index changes live to use cases
+    LaunchedEffect(cameraControl, exposureIndex, isExposureSupported) {
+        if (isExposureSupported && cameraControl != null) {
+            try {
+                val clamped = exposureIndex.coerceIn(minExposure, maxExposure)
+                cameraControl?.setExposureCompensationIndex(clamped)
+            } catch (e: Exception) {
+                Log.e("CameraPreviewAndScanner", "Failed to apply exposure compensation live", e)
+            }
+        }
+    }
+
+    // Periodically run Continuous Autofocus trigger if active
+    LaunchedEffect(cameraControl, continuousAutofocus) {
+        if (continuousAutofocus && cameraControl != null) {
+            while (true) {
+                try {
+                    val factory = SurfaceOrientedMeteringPointFactory(1f, 1f)
+                    val point = factory.createPoint(0.5f, 0.5f)
+                    val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF)
+                        .setAutoCancelDuration(2, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+                    cameraControl?.startFocusAndMetering(action)
+                } catch (e: Exception) {
+                    Log.e("CameraPreviewAndScanner", "Focus trigger exception", e)
+                }
+                delay(2000L)
             }
         }
     }
@@ -228,6 +476,12 @@ fun CameraPreviewAndScanner(
                     .build()
 
                 imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                    // 0. Delay processing if initial focusing delay is not over yet
+                    if (!isInitialDelayOver) {
+                        imageProxy.close()
+                        return@setAnalyzer
+                    }
+
                     @SuppressLint("UnsafeOptInUsageError")
                     val mediaImage = imageProxy.image
                     if (mediaImage != null) {
@@ -249,17 +503,15 @@ fun CameraPreviewAndScanner(
                                     if (!code.isNullOrEmpty() && isValidBarcode(code)) {
                                         val now = System.currentTimeMillis()
                                         
-                                        // 2. Cooldown check per unique barcode (1.5 seconds)
-                                        if (code == lastScannedCode && (now - lastScannedTime < cooldownMs)) {
+                                        // 2. Strict cooldown check (1.5 seconds) after any scan
+                                        if (now - lastScannedTime < cooldownMs) {
                                             break
                                         }
 
                                         // 3. Atomically acquire scanning lock to run "One Scan = One Action"
                                         if (isProcessing.compareAndSet(false, true)) {
-                                            // Handle barcode with callback as requested (Check -> Add -> Buffer Clear -> Cooldown)
                                             onBarcodeDetected(code) { isSuccess ->
                                                 if (isSuccess) {
-                                                    lastScannedCode = code
                                                     lastScannedTime = System.currentTimeMillis()
                                                     clearBarcodeBuffer()
                                                 } else {
@@ -295,7 +547,14 @@ fun CameraPreviewAndScanner(
                         imageAnalysis
                     )
                     
-                    // Force Continuous Auto Focus picture/video mode
+                    cameraControl = camera.cameraControl
+                    val exposureState = camera.cameraInfo.exposureState
+                    isExposureSupported = exposureState.isExposureCompensationSupported
+                    if (isExposureSupported) {
+                        minExposure = exposureState.exposureCompensationRange.lower
+                        maxExposure = exposureState.exposureCompensationRange.upper
+                    }
+                    
                     camera.cameraControl.cancelFocusAndMetering()
                 } catch (exc: Exception) {
                     Log.e("CameraPreviewAndScanner", "Camera X binding failed", exc)

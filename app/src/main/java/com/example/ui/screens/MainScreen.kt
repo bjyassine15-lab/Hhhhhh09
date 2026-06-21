@@ -7,6 +7,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -24,6 +25,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.Canvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -91,16 +95,16 @@ fun MainScreen(
                     )
                 },
                 actions = {
+                    val isDarkThemeNow = MaterialTheme.colorScheme.background == Color(0xFF000000)
                     IconButton(
                         onClick = onThemeToggle,
                         modifier = Modifier.size(36.dp)
                     ) {
-                        val isDarkThemeNow = MaterialTheme.colorScheme.background == Color(0xFF000000)
                         Icon(
-                            imageVector = if (isDarkThemeNow) Icons.Default.DarkMode else Icons.Default.WbSunny,
+                            imageVector = if (isDarkThemeNow) Icons.Default.WbSunny else Icons.Default.DarkMode,
                             contentDescription = "تبديل المظهر",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            tint = if (isDarkThemeNow) Color.White else Color(0xFF12151C),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
@@ -137,22 +141,24 @@ fun MainScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFF0C0C0C)
+                    containerColor = if (MaterialTheme.colorScheme.background == Color(0xFF000000)) Color(0xFF0C0C0C) else Color(0xFFFFFFFF)
                 )
             )
         },
         bottomBar = {
+            val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.navigationBars),
-                color = Color(0xFF000000)
+                color = if (isDark) Color(0xFF000000) else Color(0xFFF4F6F9)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .background(Color(0xFF0D0D0D), shape = RoundedCornerShape(20.dp))
+                        .background(if (isDark) Color(0xFF0D0D0D) else Color(0xFFFFFFFF), shape = RoundedCornerShape(20.dp))
+                        .border(if (isDark) BorderStroke(0.dp, Color.Transparent) else BorderStroke(1.dp, Color(0xFFE2E8F0)), shape = RoundedCornerShape(20.dp))
                         .padding(vertical = 8.dp, horizontal = 12.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
@@ -199,12 +205,19 @@ fun MainScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = icon,
-                                            contentDescription = label,
-                                            tint = activeTabColor,
-                                            modifier = Modifier.size(16.dp)
-                                        )
+                                        if (tabIndex == 2) {
+                                            ColoredBarChartIcon(
+                                                modifier = Modifier.size(16.dp),
+                                                isSelected = true
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = label,
+                                                tint = activeTabColor,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
                                         Text(
                                             text = label,
                                             color = Color.White,
@@ -215,12 +228,19 @@ fun MainScreen(
                                 }
                                 
                                 if (!isSelected) {
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = label,
-                                        tint = Color(0xFF8A8A8A),
-                                        modifier = Modifier.size(20.dp)
-                                    )
+                                    if (tabIndex == 2) {
+                                        ColoredBarChartIcon(
+                                            modifier = Modifier.size(20.dp),
+                                            isSelected = false
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = icon,
+                                            contentDescription = label,
+                                            tint = Color(0xFF8A8A8A),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = label,
@@ -478,4 +498,46 @@ fun BackupRestoreDialog(
         )
     }
 }
+
+@Composable
+fun ColoredBarChartIcon(modifier: Modifier = Modifier, isSelected: Boolean) {
+    Canvas(modifier = modifier) {
+        val width = size.width
+        val height = size.height
+        
+        val barCount = 3
+        val spacing = width * 0.15f
+        val barWidth = (width - (spacing * (barCount - 1))) / barCount
+        
+        val hRatios = listOf(0.4f, 0.9f, 0.65f)
+        
+        val barColors = if (isSelected) {
+            listOf(
+                Color(0xFF4CAF50), // Emerald Green
+                Color(0xFFFF9800), // Amber
+                Color(0xFFE040FB)  // Fuchsia
+            )
+        } else {
+            listOf(
+                Color(0xFF8A8A8A).copy(alpha = 0.8f),
+                Color(0xFF8A8A8A).copy(alpha = 0.8f),
+                Color(0xFF8A8A8A).copy(alpha = 0.8f)
+            )
+        }
+        
+        for (i in 0 until barCount) {
+            val barHeight = height * hRatios[i]
+            val x = i * (barWidth + spacing)
+            val y = height - barHeight
+            
+            drawRoundRect(
+                color = barColors[i],
+                topLeft = Offset(x, y),
+                size = Size(barWidth, barHeight),
+                cornerRadius = CornerRadius(barWidth * 0.25f, barWidth * 0.25f)
+            )
+        }
+    }
+}
+
 

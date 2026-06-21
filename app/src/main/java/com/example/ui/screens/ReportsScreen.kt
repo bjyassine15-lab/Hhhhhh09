@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
@@ -52,26 +53,42 @@ fun ReportsScreen(
     var tabIndex by remember { mutableIntStateOf(0) }
     val tabTitles = listOf("المرابيح", "سجل الفواتير", "الديون (الكريدي)", "تنبيهات المخزن")
 
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val rootBrush = if (isDark) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF000000),
+                Color(0xFF070C10),
+                Color(0xFF020406)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFF4F6F9),
+                Color(0xFFECEFF1),
+                Color(0xFFF4F6F9)
+            )
+        )
+    }
+
+    val containerColor = if (isDark) Color(0xFF0C0C0C) else Color(0xFFFFFFFF)
+    val contentColor = if (isDark) Color.White else Color(0xFF1E293B)
+    val dividerColor = if (isDark) Color(0xFF161616) else Color(0xFFE2E8F0)
+    val unselectedTabColor = if (isDark) Color(0xFF666666) else Color(0xFF64748B)
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .background(
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF000000),
-                        Color(0xFF070C10),
-                        Color(0xFF020406)
-                    )
-                )
-            )
+            .background(brush = rootBrush)
     ) {
         // Premium Custom Animated TabRow
         TabRow(
             selectedTabIndex = tabIndex,
             modifier = Modifier.fillMaxWidth(),
-            containerColor = Color(0xFF0C0C0C),
-            contentColor = Color.White,
+            containerColor = containerColor,
+            contentColor = contentColor,
             indicator = { tabPositions ->
                 if (tabIndex < tabPositions.size) {
                     val activeColor = when (tabIndex) {
@@ -89,7 +106,7 @@ fun ReportsScreen(
                 }
             },
             divider = {
-                HorizontalDivider(color = Color(0xFF161616))
+                HorizontalDivider(color = dividerColor)
             }
         ) {
             tabTitles.forEachIndexed { index, title ->
@@ -105,7 +122,7 @@ fun ReportsScreen(
                     selected = isSelected,
                     onClick = { tabIndex = index },
                     selectedContentColor = activeTabColor,
-                    unselectedContentColor = Color(0xFF666666),
+                    unselectedContentColor = unselectedTabColor,
                     text = {
                         Text(
                             text = title,
@@ -135,6 +152,7 @@ fun EmptyStateRow(
     description: String,
     accentColor: Color
 ) {
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -161,14 +179,14 @@ fun EmptyStateRow(
             text = title,
             fontWeight = FontWeight.Bold,
             fontSize = 15.sp,
-            color = Color.White,
+            color = if (isDark) Color.White else Color(0xFF1E293B),
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = description,
             fontSize = 12.sp,
-            color = Color(0xFF8A8A8A),
+            color = if (isDark) Color(0xFF8A8A8A) else Color(0xFF64748B),
             textAlign = TextAlign.Center,
             lineHeight = 18.sp,
             modifier = Modifier.padding(horizontal = 16.dp)
@@ -195,6 +213,7 @@ fun ProfitsTab(viewModel: PosViewModel) {
     }
 
     val totalMarketDebts = customersWithDebt.sumOf { it.totalDebt }
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
 
     LazyColumn(
         modifier = Modifier
@@ -207,7 +226,7 @@ fun ProfitsTab(viewModel: PosViewModel) {
                 text = "التقرير المالي العام للمبيعات",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = if (isDark) Color.White else Color(0xFF1E293B),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
         }
@@ -258,17 +277,19 @@ fun StatCard(
     // Dynamically apply beautiful cyber POS system design
     val isProfit = title.contains("مرابيح") || title.contains("الأرباح")
     val isDebt = title.contains("ديون") || title.contains("الكريدي")
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
 
     val strokeColor = when {
         isProfit -> Color(0xFF4CAF50).copy(alpha = 0.3f)
         isDebt -> Color(0xFFF44336).copy(alpha = 0.3f)
-        else -> Color(0xFFE040FB).copy(alpha = 0.3f)
+        else -> if (isDark) Color(0xFFE040FB).copy(alpha = 0.3f) else Color(0xFFE2E8F0)
     }
 
+    val defaultValColor = if (isDark) Color.White else Color(0xFF12151C)
     val valueTextColor = when {
         isProfit -> Color(0xFF4CAF50)
         isDebt -> Color(0xFFF44336)
-        else -> Color.White
+        else -> defaultValColor
     }
 
     val iconTint = when {
@@ -277,9 +298,13 @@ fun StatCard(
         else -> Color(0xFFE040FB)
     }
 
+    val cardBg = if (isDark) Color(0xFF121212) else Color(0xFFFFFFFF)
+    val titleColor = if (isDark) Color(0xFFC7C7C7) else Color(0xFF475569)
+    val circleBg = if (isDark) Color(0xFF171717) else Color(0xFFF1F5F9)
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
         shape = RoundedCornerShape(24.dp),
         border = BorderStroke(1.dp, strokeColor)
     ) {
@@ -295,7 +320,7 @@ fun StatCard(
                     text = title,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFFC7C7C7)
+                    color = titleColor
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -315,7 +340,7 @@ fun StatCard(
             Box(
                 modifier = Modifier
                     .size(54.dp)
-                    .background(Color(0xFF171717), CircleShape)
+                    .background(circleBg, CircleShape)
                     .border(1.dp, strokeColor.copy(alpha = 0.6f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
@@ -337,6 +362,13 @@ fun StatCard(
 fun InvoicesHistoryTab(viewModel: PosViewModel) {
     val invoicesWithItems by viewModel.allInvoices.collectAsState()
     var selectedInvoiceForDetail by remember { mutableStateOf<InvoiceWithItems?>(null) }
+    var invoiceToDelete by remember { mutableStateOf<Invoice?>(null) }
+    val context = LocalContext.current
+
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val tabRowContainerColor = if (isDark) Color(0xFF0C0C0C) else Color(0xFFF1F5F9)
+    val tabRowContentColor = if (isDark) Color.White else Color(0xFF1E293B)
+    val dividerColor = if (isDark) Color(0xFF161616) else Color(0xFFE2E8F0)
     
     // Filter status index: 0 = الكل, 1 = نقداً (كاش), 2 = كريدي (ديون)
     var filterIndex by remember { mutableIntStateOf(0) }
@@ -354,17 +386,45 @@ fun InvoicesHistoryTab(viewModel: PosViewModel) {
         TabRow(
             selectedTabIndex = filterIndex,
             modifier = Modifier.fillMaxWidth(),
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            containerColor = tabRowContainerColor,
+            contentColor = tabRowContentColor,
+            indicator = { tabPositions ->
+                if (filterIndex < tabPositions.size) {
+                    val activeColor = when (filterIndex) {
+                        0 -> Color(0xFFE040FB) // الكل = Fuchsia
+                        1 -> Color(0xFF4CAF50) // كاش = Green
+                        2 -> Color(0xFFF44336) // كريدي = Red
+                        else -> Color(0xFFE040FB)
+                    }
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[filterIndex]),
+                        color = activeColor,
+                        height = 3.dp
+                    )
+                }
+            },
+            divider = {
+                HorizontalDivider(color = dividerColor)
+            }
         ) {
             filterTitles.forEachIndexed { index, title ->
+                val isSelected = filterIndex == index
+                val activeTabColor = when (index) {
+                    0 -> Color(0xFFE040FB)
+                    1 -> Color(0xFF4CAF50)
+                    2 -> Color(0xFFF44336)
+                    else -> Color(0xFFE040FB)
+                }
                 Tab(
-                    selected = filterIndex == index,
+                    selected = isSelected,
                     onClick = { filterIndex = index },
+                    selectedContentColor = activeTabColor,
+                    unselectedContentColor = Color(0xFF8A8A8A),
                     text = {
                         Text(
                             text = title,
                             fontSize = 12.sp,
-                            fontWeight = if (filterIndex == index) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
                     }
                 )
@@ -387,7 +447,8 @@ fun InvoicesHistoryTab(viewModel: PosViewModel) {
                 items(filteredInvoices, key = { it.invoice.id }) { item ->
                     InvoiceRow(
                         invoiceWithItems = item,
-                        onClick = { selectedInvoiceForDetail = item }
+                        onClick = { selectedInvoiceForDetail = item },
+                        onDeleteClick = { invoiceToDelete = it }
                     )
                 }
             }
@@ -400,17 +461,65 @@ fun InvoicesHistoryTab(viewModel: PosViewModel) {
             onDismiss = { selectedInvoiceForDetail = null }
         )
     }
+
+    if (invoiceToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { invoiceToDelete = null },
+            title = {
+                Text(
+                    "حذف الفاتورة",
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Start
+                )
+            },
+            text = {
+                Text(
+                    "هل أنت متأكد من حذف هذه الفاتورة؟ سيتم تحديث الحسابات بناءً على ذلك.",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Start
+                )
+            },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                    onClick = {
+                        invoiceToDelete?.let { invoice ->
+                            viewModel.deleteInvoice(invoice) {
+                                invoiceToDelete = null
+                                Toast.makeText(context, "تم حذف الفاتورة وتحديث الحسابات بنجاح.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                ) {
+                    Text("تأكيد", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { invoiceToDelete = null }) {
+                    Text("إلغاء")
+                }
+            }
+        )
+    }
 }
 
 @Composable
 fun InvoiceRow(
     invoiceWithItems: InvoiceWithItems,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: (Invoice) -> Unit
 ) {
     val dateText = remember(invoiceWithItems.invoice.timestamp) {
         val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault())
         sdf.format(Date(invoiceWithItems.invoice.timestamp))
     }
+
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val cardBg = if (isDark) Color(0xFF121212) else Color(0xFFFFFFFF)
+    val cardBorder = if (isDark) Color(0xFF1C1C1C) else Color(0xFFE2E8F0)
+    val textPrimary = if (isDark) Color.White else Color(0xFF12151C)
+    val textSecondary = if (isDark) Color(0xFF8A8A8A) else Color(0xFF64748B)
 
     Card(
         modifier = Modifier
@@ -418,8 +527,8 @@ fun InvoiceRow(
             .padding(vertical = 4.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-        border = BorderStroke(1.dp, Color(0xFF1C1C1C))
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.dp, cardBorder)
     ) {
         Row(
             modifier = Modifier
@@ -428,18 +537,18 @@ fun InvoiceRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "فاتورة: ${invoiceWithItems.invoice.invoiceNumber}",
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = Color.White
+                    color = textPrimary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = dateText,
                     fontSize = 11.sp,
-                    color = Color(0xFF8A8A8A)
+                    color = textSecondary
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -449,7 +558,7 @@ fun InvoiceRow(
                 )
             }
 
-            Column(horizontalAlignment = Alignment.End) {
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(horizontal = 8.dp)) {
                 Text(
                     text = String.format("%.2f د.ت", invoiceWithItems.invoice.totalAmount),
                     fontWeight = FontWeight.Black,
@@ -480,6 +589,18 @@ fun InvoiceRow(
                         color = if (isDebtStatus) Color(0xFFF44336) else Color(0xFF4CAF50)
                     )
                 }
+            }
+
+            IconButton(
+                onClick = { onDeleteClick(invoiceWithItems.invoice) },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "حذف الفاتورة",
+                    tint = Color(0xFFF44336).copy(alpha = 0.8f),
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
@@ -738,45 +859,118 @@ fun AddManualDebtGeneralDialog(
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
 
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val cardBg = if (isDark) Color(0xFF171717) else Color(0xFFFFFFFF)
+    val cardBorder = if (isDark) Color(0xFF262626) else Color(0xFFE2E8F0)
+    val labelColor = if (isDark) Color(0xFF8A8A8A) else Color(0xFF64748B)
+    val fieldBg = if (isDark) Color(0xFF121212) else Color(0xFFF8FAFC)
+    val textCol = if (isDark) Color.White else Color(0xFF12151C)
+
+    val inputColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
+        unfocusedBorderColor = cardBorder,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = labelColor,
+        focusedTextColor = textCol,
+        unfocusedTextColor = textCol,
+        cursorColor = MaterialTheme.colorScheme.primary,
+        focusedContainerColor = fieldBg,
+        unfocusedContainerColor = fieldBg
+    )
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            shape = RoundedCornerShape(16.dp)
+                .padding(12.dp)
+                .shadow(16.dp, RoundedCornerShape(28.dp))
+                .border(BorderStroke(1.dp, cardBorder), RoundedCornerShape(28.dp)),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBg)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Circular icon header badge
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .size(56.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AccountBalanceWallet,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+
                 Text(
                     text = "تسجيل دين جديد يدوياً",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = textCol,
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
 
-                // TAB SELECTOR
-                TabRow(
-                    selectedTabIndex = tabIndex,
+                // TAB SELECTOR (Custom Modern Pill Switcher)
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(if (isDark) Color(0xFF1E1E1E) else Color(0xFFF1F5F9))
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Tab(
-                        selected = tabIndex == 0,
-                        onClick = { tabIndex = 0 },
-                        text = { Text("عميل مسجل", fontSize = 13.sp) }
-                    )
-                    Tab(
-                        selected = tabIndex == 1,
-                        onClick = { tabIndex = 1 },
-                        text = { Text("عميل جديد", fontSize = 13.sp) }
-                    )
+                    val activeBg = MaterialTheme.colorScheme.primary
+                    val activeText = if (isDark) Color.Black else Color.White
+                    val inactiveText = if (isDark) Color(0xFF8A8A8A) else Color(0xFF64748B)
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (tabIndex == 0) activeBg else Color.Transparent)
+                            .clickable { tabIndex = 0 }
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "عميل مسجل",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (tabIndex == 0) activeText else inactiveText
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (tabIndex == 1) activeBg else Color.Transparent)
+                            .clickable { tabIndex = 1 }
+                            .padding(vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "عميل جديد",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (tabIndex == 1) activeText else inactiveText
+                        )
+                    }
                 }
 
                 // CUSTOMER SELECTION
@@ -798,11 +992,24 @@ fun AddManualDebtGeneralDialog(
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text("اختر عميل") },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                                    )
+                                },
                                 trailingIcon = {
                                     IconButton(onClick = { expandedDropdown = !expandedDropdown }) {
-                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                        Icon(
+                                            Icons.Default.ArrowDropDown,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
                                     }
                                 },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = inputColors,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { expandedDropdown = !expandedDropdown }
@@ -815,7 +1022,15 @@ fun AddManualDebtGeneralDialog(
                             ) {
                                 customers.forEach { customer ->
                                     DropdownMenuItem(
-                                        text = { Text(customer.name) },
+                                        text = { Text(customer.name, fontWeight = FontWeight.Medium) },
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Person,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
                                         onClick = {
                                             selectedCustomer = customer
                                             expandedDropdown = false
@@ -830,7 +1045,16 @@ fun AddManualDebtGeneralDialog(
                         value = newCustomerName,
                         onValueChange = { newCustomerName = it },
                         label = { Text("اسم العميل الجديد *") },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.PersonAdd,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                            )
+                        },
                         singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        colors = inputColors,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -840,8 +1064,25 @@ fun AddManualDebtGeneralDialog(
                     value = amountText,
                     onValueChange = { amountText = it },
                     label = { Text("مبلغ الدين د.ت *") },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.AttachMoney,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                        )
+                    },
+                    trailingIcon = {
+                        Text(
+                            text = "د.ت",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 12.dp)
+                        )
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = inputColors,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -851,20 +1092,44 @@ fun AddManualDebtGeneralDialog(
                     onValueChange = { noteText = it },
                     label = { Text("توصيف وسبب الدين *") },
                     placeholder = { Text("مثال: علف، حليب، زيت...") },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Notes,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                        )
+                    },
                     singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = inputColors,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("إلغاء")
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(25.dp),
+                        border = BorderStroke(1.dp, if (isDark) Color(0xFF333333) else Color(0xFFCBD5E1)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (isDark) Color(0xFFC7C7C7) else Color(0xFF475569)
+                        )
+                    ) {
+                        Text(
+                            text = "إلغاء",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+
                     Button(
                         onClick = {
                             val amt = amountText.toDoubleOrNull()
@@ -881,9 +1146,33 @@ fun AddManualDebtGeneralDialog(
                             }
                         },
                         enabled = (amountText.toDoubleOrNull() != null && amountText.toDouble() > 0 && noteText.trim().isNotEmpty()) &&
-                                (if (tabIndex == 0) selectedCustomer != null else newCustomerName.trim().isNotEmpty())
+                                (if (tabIndex == 0) selectedCustomer != null else newCustomerName.trim().isNotEmpty()),
+                        modifier = Modifier
+                            .weight(1.5f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(25.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                            contentColor = if (isDark) Color.Black else Color.White
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 4.dp,
+                            pressedElevation = 2.dp,
+                            disabledElevation = 0.dp
+                        )
                     ) {
-                        Text("تسجيل الدين يدوياً")
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "تسجيل الدين",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -896,14 +1185,20 @@ fun CustomerDebtRow(
     customer: CustomerWithDebt,
     onClick: () -> Unit
 ) {
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val cardBg = if (isDark) Color(0xFF121212) else Color(0xFFFFFFFF)
+    val cardBorder = if (isDark) Color(0xFF1C1C1C) else Color(0xFFE2E8F0)
+    val textPrimary = if (isDark) Color.White else Color(0xFF12151C)
+    val textSecondary = if (isDark) Color(0xFF8A8A8A) else Color(0xFF64748B)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF121212)),
-        border = BorderStroke(1.dp, Color(0xFF1C1C1C))
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.dp, cardBorder)
     ) {
         Row(
             modifier = Modifier
@@ -917,14 +1212,14 @@ fun CustomerDebtRow(
                     text = customer.name,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
-                    color = Color.White
+                    color = textPrimary
                 )
                 if (!customer.phone.isNullOrEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "الهاتف: ${customer.phone}",
                         fontSize = 12.sp,
-                        color = Color(0xFF8A8A8A)
+                        color = textSecondary
                     )
                 }
             }
@@ -933,7 +1228,7 @@ fun CustomerDebtRow(
                 Text(
                     text = "صافي الدين المستحق:",
                     fontSize = 10.sp,
-                    color = Color(0xFF8A8A8A)
+                    color = textSecondary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
@@ -970,10 +1265,17 @@ fun CustomerTransactionsDialog(
     // Actions state
     var showAddPaymentDialog by remember { mutableStateOf(false) }
     var showAddManualDebtDialog by remember { mutableStateOf(false) }
+    var invoiceToDelete by remember { mutableStateOf<Invoice?>(null) }
+    var paymentToDelete by remember { mutableStateOf<DebtPayment?>(null) }
 
     // Forms
     var amountText by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
+
+    val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
+    val cardBg = if (isDark) Color(0xFF1E1E1E) else Color(0xFFFFFFFF)
+    val txtPrimary = if (isDark) Color.White else Color(0xFF12151C)
+    val txtSecondary = if (isDark) Color(0xFF8A8A8A) else Color(0xFF64748B)
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -981,7 +1283,8 @@ fun CustomerTransactionsDialog(
                 .fillMaxWidth(0.95f)
                 .padding(vertical = 12.dp)
                 .heightIn(max = 520.dp),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardBg)
         ) {
             Column(
                 modifier = Modifier
@@ -1010,7 +1313,7 @@ fun CustomerTransactionsDialog(
                         modifier = Modifier.padding(12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("صافي الديون المستحقة الكلية", fontSize = 11.sp)
+                        Text("صافي الديون المستحقة الكلية", fontSize = 11.sp, color = txtPrimary)
                         Text(
                             text = String.format("%.2f د.ت", customer.totalDebt),
                             fontSize = 22.sp,
@@ -1098,35 +1401,48 @@ fun CustomerTransactionsDialog(
                                         text = "رقم الفاتورة: ${item.invoice.invoiceNumber}", 
                                         fontSize = 12.sp, 
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                        color = if (isDark) MaterialTheme.colorScheme.onErrorContainer else Color(0xFF991B1B)
                                     )
                                     Text(
                                         text = "بتاريخ: $invDate", 
                                         fontSize = 10.sp, 
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = txtSecondary
                                     )
                                     if (item.items.isNotEmpty()) {
                                         val itemsSummary = item.items.joinToString(", ") { "${it.productName} (x${it.quantity})" }
                                         Text(
                                             text = "البضائع: $itemsSummary",
                                             fontSize = 9.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                                            color = txtSecondary.copy(alpha = 0.8f),
                                             maxLines = 1
                                         )
                                     }
                                 }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(
-                                        text = String.format("%.2f د.ت", item.invoice.totalAmount),
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    if (item.invoice.paidAmount > 0) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Column(horizontalAlignment = Alignment.End) {
                                         Text(
-                                            text = "مدفوع جزئي: " + String.format("%.2f", item.invoice.paidAmount),
-                                            color = Color(0xFF1B5E20),
-                                            fontSize = 8.sp
+                                            text = String.format("%.2f د.ت", item.invoice.totalAmount),
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        if (item.invoice.paidAmount > 0) {
+                                            Text(
+                                                text = "مدفوع جزئي: " + String.format("%.2f", item.invoice.paidAmount),
+                                                color = Color(0xFF1B5E20),
+                                                fontSize = 8.sp
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = { invoiceToDelete = item.invoice },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "حذف الفاتورة",
+                                            tint = Color(0xFFF44336).copy(alpha = 0.8f),
+                                            modifier = Modifier.size(16.dp)
                                         )
                                     }
                                 }
@@ -1175,11 +1491,24 @@ fun CustomerTransactionsDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text("تسديد نقدي: ${payment.note ?: "بدون ملاحظة"}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                    Text("بتاريخ: $payDate", fontSize = 9.sp, color = Color.Gray)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("تسديد نقدي: ${payment.note ?: "بدون ملاحظة"}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = txtPrimary)
+                                    Text("بتاريخ: $payDate", fontSize = 9.sp, color = txtSecondary)
                                 }
-                                Text("- " + String.format("%.2f د.ت", payment.amountPaid), color = Color(0xFF1B5E20), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("- " + String.format("%.2f د.ت", payment.amountPaid), color = Color(0xFF4CAF50), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    IconButton(
+                                        onClick = { paymentToDelete = payment },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "حذف الدفعة",
+                                            tint = Color(0xFFF44336).copy(alpha = 0.8f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1303,6 +1632,64 @@ fun CustomerTransactionsDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showAddManualDebtDialog = false }) {
+                    Text("إلغاء")
+                }
+            }
+        )
+    }
+
+    // C. Sub-dialogs: Confirm invoice deletion
+    if (invoiceToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { invoiceToDelete = null },
+            title = { Text("تأكيد حذف الفاتورة", fontWeight = FontWeight.Bold) },
+            text = { Text("هل أنت متأكد من حذف هذه الفاتورة؟ سيتم تحديث الحسابات والديون بناءً على ذلك.") },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                    onClick = {
+                        invoiceToDelete?.let { inv ->
+                            viewModel.deleteInvoice(inv) {
+                                invoiceToDelete = null
+                                Toast.makeText(context, "تم حذف الفاتورة وتحديث الحسابات بنجاح.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                ) {
+                    Text("تأكيد", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { invoiceToDelete = null }) {
+                    Text("إلغاء")
+                }
+            }
+        )
+    }
+
+    // D. Sub-dialogs: Confirm payment deletion
+    if (paymentToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { paymentToDelete = null },
+            title = { Text("تأكيد حذف الدفعة", fontWeight = FontWeight.Bold) },
+            text = { Text("هل أنت متأكد من حذف دفعة التسديد هذه كلياً؟ سيتم رفع الدين الأصلي للعميل بناءً على ذلك.") },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF44336)),
+                    onClick = {
+                        paymentToDelete?.let { pay ->
+                            viewModel.deleteDebtPayment(pay) {
+                                paymentToDelete = null
+                                Toast.makeText(context, "تم حذف دفعة التسديد بنجاح وتحديث صافي الديون.", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                ) {
+                    Text("تأكيد", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { paymentToDelete = null }) {
                     Text("إلغاء")
                 }
             }

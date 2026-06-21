@@ -70,6 +70,9 @@ interface PosDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertInvoiceItems(items: List<InvoiceItem>)
 
+    @Delete
+    suspend fun deleteInvoice(invoice: Invoice)
+
     @Transaction
     @Query("SELECT * FROM invoices ORDER BY timestamp DESC")
     fun getAllInvoicesWithItems(): Flow<List<InvoiceWithItems>>
@@ -81,6 +84,9 @@ interface PosDao {
     // --- DEBT PAYMENTS ---
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertDebtPayment(payment: DebtPayment): Long
+
+    @Delete
+    suspend fun deleteDebtPayment(payment: DebtPayment)
 
     @Query("SELECT * FROM debt_payments WHERE customerId = :customerId ORDER BY timestamp DESC")
     fun getDebtPaymentsForCustomer(customerId: Long): Flow<List<DebtPayment>>
