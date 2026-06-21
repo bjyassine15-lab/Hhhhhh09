@@ -44,19 +44,25 @@ class MainActivity : ComponentActivity() {
                 else -> isSystemInDarkTheme()
             }
 
-            MyApplicationTheme(darkTheme = isDarkThemeNow, dynamicColor = false) {
-                MainScreen(
-                    viewModel = viewModel,
-                    onThemeToggle = {
-                        val nextMode = if (isDarkThemeNow) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
-                        getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE).edit().putInt("night_mode_state", nextMode).apply()
-                        // Update currentThemeMode directly.
-                        // By not calling AppCompatDelegate.setDefaultNightMode(nextMode) runtime,
-                        // we completely avoid jarring activity recreation & hard flashing,
-                        // allowing our 400ms alpha-crossfade animation in MyApplicationTheme to play seamlessly!
-                        currentThemeMode = nextMode
-                    }
-                )
+            androidx.compose.animation.Crossfade(
+                targetState = isDarkThemeNow,
+                animationSpec = androidx.compose.animation.core.tween(durationMillis = 400),
+                label = "global_theme_crossfade"
+            ) { targetDark ->
+                MyApplicationTheme(darkTheme = targetDark, dynamicColor = false) {
+                    MainScreen(
+                        viewModel = viewModel,
+                        onThemeToggle = {
+                            val nextMode = if (isDarkThemeNow) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
+                            getSharedPreferences("app_theme_prefs", Context.MODE_PRIVATE).edit().putInt("night_mode_state", nextMode).apply()
+                            // Update currentThemeMode directly.
+                            // By not calling AppCompatDelegate.setDefaultNightMode(nextMode) runtime,
+                            // we completely avoid jarring activity recreation & hard flashing,
+                            // allowing our 400ms alpha-crossfade animation to play seamlessly!
+                            currentThemeMode = nextMode
+                        }
+                    )
+                }
             }
         }
     }
