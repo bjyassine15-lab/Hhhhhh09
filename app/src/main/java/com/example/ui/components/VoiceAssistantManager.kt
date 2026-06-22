@@ -152,12 +152,10 @@ object VoiceAssistantManager {
                 })
             }
             webSocket.send(setupJson.toString())
-            Log.d(TAG, "Setup config message sent.")
+            Log.d(TAG, "Setup config message sent successfully. Waiting for setupComplete response...")
 
             sessionScope?.launch(Dispatchers.Main) {
-                _state.value = VoiceState.LISTENING
-                _statusText.value = "البث المباشر نشط وصوت Gemini يتحدث، تكلم الآن..."
-                startAudioHardware(webSocket)
+                _statusText.value = "تم إرسال حزمة التكوين، بانتظار تأكيد الخادم لقنوات الصوت..."
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -168,7 +166,7 @@ object VoiceAssistantManager {
 
     @SuppressLint("MissingPermission")
     private fun startAudioHardware(ws: WebSocket) {
-        // 1. Setup AudioTrack for Playback (24kHz Mono 16bit PCM)
+        // 1. Setup AudioTrack for Playback (24kHz Mono 16-bit PCM)
         try {
             val sampleRateOut = 24000
             val minBufOut = AudioTrack.getMinBufferSize(
@@ -176,14 +174,31 @@ object VoiceAssistantManager {
                 AudioFormat.CHANNEL_OUT_MONO,
                 AudioFormat.ENCODING_PCM_16BIT
             )
-            val track = AudioTrack(
-                AudioManager.STREAM_MUSIC,
-                sampleRateOut,
-                AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_16BIT,
-                minBufOut,
-                AudioTrack.MODE_STREAM
-            )
+            val bufferSizeOut = minBufOut.coerceAtLeast(4096)
+
+            val attrs = android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+
+            val format = AudioFormat.Builder()
+                .setSampleRate(sampleRateOut)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .build()
+
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(attrs)
+                .setAudioFormat(format)
+                .setBufferSizeInBytes(bufferSizeOut)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+
+            if (track.state != AudioTrack.STATE_INITIALIZED) {
+                Log.e(TAG, "AudioTrack state is uninitialized")
+                throw IllegalStateException("AudioTrack initialization failed")
+            }
+
             audioTrack = track
             track.play()
 
@@ -193,9 +208,10 @@ object VoiceAssistantManager {
                         track.write(pcmBytes, 0, pcmBytes.size)
                     }
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    Log.e(TAG, "Playback error: ${e.localizedMessage}")
                 }
             }
+            Log.d(TAG, "AudioTrack initiated and running successfully.")
         } catch (e: Exception) {
             Log.e(TAG, "Error initiating AudioTrack: ${e.localizedMessage}")
         }
@@ -208,18 +224,28 @@ object VoiceAssistantManager {
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT
             )
+            val bufferSizeIn = minBufIn.coerceAtLeast(4096)
+
             val recorder = AudioRecord(
                 MediaRecorder.AudioSource.MIC,
                 sampleRateIn,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
-                minBufIn
+                bufferSizeIn
             )
+
+            if (recorder.state != AudioRecord.STATE_INITIALIZED) {
+                Log.e(TAG, "AudioRecord state is uninitialized")
+                throw IllegalStateException("AudioRecord initialization failed")
+            }
+
             audioRecord = recorder
             recorder.startRecording()
+            Log.d(TAG, "AudioRecord started recording successfully.")
 
             recordingJob = sessionScope?.launch(Dispatchers.IO) {
-                val buffer = ByteArray(minBufIn)
+                val pcmChunkSize = 1024 // Low latency 32ms chunk size at 16kHz Mono 16bit
+                val buffer = ByteArray(pcmChunkSize)
                 while (isActive) {
                     val read = recorder.read(buffer, 0, buffer.size)
                     if (read > 0) {
@@ -227,7 +253,7 @@ object VoiceAssistantManager {
                         val base64Data = Base64.encodeToString(pcmBytes, Base64.NO_WRAP)
 
                         val inputJson = JSONObject().apply {
-                            put("realTimeInput", JSONObject().apply {
+                            put("realtimeInput", JSONObject().apply {
                                 put("mediaChunks", JSONArray().apply {
                                     put(JSONObject().apply {
                                         put("mimeType", "audio/pcm")
@@ -236,7 +262,11 @@ object VoiceAssistantManager {
                                 })
                             })
                         }
-                        ws.send(inputJson.toString())
+                        try {
+                            ws.send(inputJson.toString())
+                        } catch (e: Exception) {
+                            Log.e(TAG, "WebSocket write error: ${e.localizedMessage}")
+                        }
                     }
                 }
             }
@@ -250,6 +280,18 @@ object VoiceAssistantManager {
     private fun handleServerMessage(text: String) {
         try {
             val json = JSONObject(text)
+
+            // Check if setup is complete
+            val setupComplete = json.optJSONObject("setupComplete")
+            if (setupComplete != null) {
+                Log.d(TAG, "Gemini Live setup complete received from server. Starting audio hardware...")
+                sessionScope?.launch(Dispatchers.Main) {
+                    _state.value = VoiceState.LISTENING
+                    _statusText.value = "البث المباشر نشط وصوت Gemini يتحدث، تكلم الآن..."
+                    webSocket?.let { startAudioHardware(it) }
+                }
+                return
+            }
 
             val serverContent = json.optJSONObject("serverContent")
             if (serverContent != null) {

@@ -67,10 +67,12 @@ fun MainScreen(
     val recordAudioPermissionState = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
 
     // Voice conversation states
-    var isVoiceSessionActive by remember { mutableStateOf(false) }
     val voiceState by VoiceAssistantManager.state.collectAsState()
     val voiceStatusText by VoiceAssistantManager.statusText.collectAsState()
     val voiceRecognizedText by VoiceAssistantManager.recognizedText.collectAsState()
+    val isVoiceSessionActive = remember(voiceState) {
+        voiceState != VoiceState.INACTIVE && voiceState != VoiceState.ERROR
+    }
 
     // Track when Gemini replies
     val chatMessages by viewModel.aiChatMessages.collectAsState()
@@ -154,10 +156,8 @@ fun MainScreen(
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         if (recordAudioPermissionState.status.isGranted) {
                                             if (isVoiceSessionActive) {
-                                                isVoiceSessionActive = false
                                                 VoiceAssistantManager.stopSession()
                                             } else {
-                                                isVoiceSessionActive = true
                                                 val sysIns = viewModel.getLiveSystemInstruction()
                                                 val apiKey = com.example.data.util.GeminiService.getSavedApiKey(context)
                                                 VoiceAssistantManager.startSession(
@@ -186,21 +186,42 @@ fun MainScreen(
                     }
                 },
                 title = {
-                    Text(
-                        text = "Prime Ledger",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                        letterSpacing = 1.sp,
-                        color = Color(0xFF00E5FF),
-                        style = androidx.compose.ui.text.TextStyle(
-                            shadow = Shadow(
-                                color = Color(0xFF00E5FF).copy(alpha = 0.4f),
-                                offset = Offset(0f, 0f),
-                                blurRadius = 12f
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Prime Ledger",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            letterSpacing = 1.sp,
+                            color = Color(0xFF00E5FF),
+                            style = androidx.compose.ui.text.TextStyle(
+                                shadow = Shadow(
+                                    color = Color(0xFF00E5FF).copy(alpha = 0.4f),
+                                    offset = Offset(0f, 0f),
+                                    blurRadius = 12f
+                                )
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                        if (isVoiceSessionActive) {
+                            Text(
+                                text = voiceStatusText,
+                                color = Color(0xFFE040FB),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                style = androidx.compose.ui.text.TextStyle(
+                                    shadow = Shadow(
+                                        color = Color(0xFFE040FB).copy(alpha = 0.4f),
+                                        offset = Offset(0f, 0f),
+                                        blurRadius = 6f
+                                    )
+                                ),
+                                textAlign = TextAlign.Center
                             )
-                        ),
-                        textAlign = TextAlign.Center
-                    )
+                        }
+                    }
                 },
                 actions = {
                     val isDarkThemeNow = MaterialTheme.colorScheme.background == Color(0xFF000000)
