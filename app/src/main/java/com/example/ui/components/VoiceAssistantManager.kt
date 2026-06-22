@@ -1,17 +1,31 @@
 package com.example.ui.components
 
+import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioRecord
+import android.media.AudioTrack
+import android.media.MediaRecorder
+import android.util.Base64
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.Locale
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 enum class VoiceState {
     INACTIVE,
@@ -24,231 +38,350 @@ enum class VoiceState {
 
 object VoiceAssistantManager {
     private const val TAG = "VoiceAssistantManager"
-    
+
     private val _state = MutableStateFlow(VoiceState.INACTIVE)
     val state = _state.asStateFlow()
 
-    private val _statusText = MutableStateFlow("")
+    private val _statusText = MutableStateFlow("المساعد الصوتي غير نشط")
     val statusText = _statusText.asStateFlow()
 
     private val _recognizedText = MutableStateFlow("")
     val recognizedText = _recognizedText.asStateFlow()
 
-    private var speechRecognizer: SpeechRecognizer? = null
-    private var textToSpeech: TextToSpeech? = null
-    private var isTtsInitialized = false
-    private var isTtsSpeaking = false
+    private var okHttpClient: OkHttpClient? = null
+    private var webSocket: WebSocket? = null
+    private var audioRecord: AudioRecord? = null
+    private var audioTrack: AudioTrack? = null
 
-    private var onSpeechResultListener: ((String) -> Unit)? = null
-    private var activeContext: Context? = null
+    private var sessionScope: CoroutineScope? = null
+    private var recordingJob: Job? = null
+    private var playbackJob: Job? = null
 
-    fun initializeTts(context: Context) {
-        if (textToSpeech != null) return
-        activeContext = context.applicationContext
-        
-        _state.value = VoiceState.INITIALIZING
-        _statusText.value = "جاري تهيئة الصوت..."
-        
-        textToSpeech = TextToSpeech(context.applicationContext) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                val localeAr = Locale("ar")
-                val result = textToSpeech?.setLanguage(localeAr)
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Log.e(TAG, "Arabic language is not supported on this device.")
-                    textToSpeech?.language = Locale.getDefault()
-                }
-                isTtsInitialized = true
-                _state.value = VoiceState.INACTIVE
-                _statusText.value = "المساعد الصوتي جاهز"
-                
-                textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {
-                        isTtsSpeaking = true
-                        _state.value = VoiceState.SPEAKING
-                    }
+    private val audioBufferChannel = Channel<ByteArray>(capacity = Channel.UNLIMITED)
+    private var accumulatedResponseText = ""
+    private var onCommandExtractedListener: ((String) -> Unit)? = null
 
-                    override fun onDone(utteranceId: String?) {
-                        isTtsSpeaking = false
-                        _state.value = VoiceState.INACTIVE
-                    }
-
-                    @Deprecated("Deprecated in Java")
-                    override fun onError(utteranceId: String?) {
-                        isTtsSpeaking = false
-                        _state.value = VoiceState.INACTIVE
-                    }
-
-                    override fun onError(utteranceId: String?, errorCode: Int) {
-                        isTtsSpeaking = false
-                        _state.value = VoiceState.INACTIVE
-                    }
-                })
-            } else {
-                Log.e(TAG, "TTS Initialization failed.")
-                _state.value = VoiceState.ERROR
-                _statusText.value = "فشل تهيئة التحدث المباشر"
-            }
+    @SuppressLint("MissingPermission")
+    fun startSession(
+        context: Context,
+        apiKey: String,
+        systemInstruction: String,
+        onCommandExtracted: (String) -> Unit
+    ) {
+        if (apiKey.isBlank()) {
+            _state.value = VoiceState.ERROR
+            _statusText.value = "الرجاء تكوين مفتاح API الخاص بـ Gemini أولاً من المخزن أو الإعدادات."
+            return
         }
+
+        // Clean up previous sessions if any
+        stopSession()
+
+        Log.d(TAG, "Starting Gemini Live WebSocket Session...")
+        _state.value = VoiceState.INITIALIZING
+        _statusText.value = "جاري الاتصال الصوتي بـ Gemini Live..."
+        _recognizedText.value = ""
+        accumulatedResponseText = ""
+        onCommandExtractedListener = onCommandExtracted
+
+        sessionScope = CoroutineScope(Dispatchers.Default)
+
+        // Initialize OkHttp with high timeout
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.MINUTES)
+            .writeTimeout(10, TimeUnit.MINUTES)
+            .build()
+        okHttpClient = client
+
+        // Gemini Multimodal Live API endpoint over WebSocket
+        val url = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=$apiKey"
+        val request = Request.Builder().url(url).build()
+
+        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                Log.d(TAG, "WebSocket Connection Opened successfully.")
+                sendSetupMessage(webSocket, systemInstruction)
+            }
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                handleServerMessage(text)
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                Log.e(TAG, "WebSocket Failure: ${t.localizedMessage}", t)
+                _state.value = VoiceState.ERROR
+                _statusText.value = "حدث خطأ في الاتصال بالبث المباشر: ${t.localizedMessage}"
+            }
+
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d(TAG, "WebSocket Connection Closing: $code / $reason")
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                Log.d(TAG, "WebSocket Connection Closed: $code / $reason")
+                _state.value = VoiceState.INACTIVE
+            }
+        })
     }
 
-    fun startListening(context: Context, onResult: (String) -> Unit) {
-        activeContext = context
-        onSpeechResultListener = onResult
-        
-        // Ensure TTS is initialized
-        initializeTts(context)
-        
-        // Stop any current speaking before listening
-        stopSpeaking()
-
-        _recognizedText.value = ""
-        _state.value = VoiceState.LISTENING
-        _statusText.value = "جاري فتح الميكروفون والاصغاء..."
-
+    private fun sendSetupMessage(webSocket: WebSocket, systemInstruction: String) {
         try {
-            // SpeechRecognizer needs to be created and invoked on Main Thread
-            if (speechRecognizer != null) {
-                speechRecognizer?.destroy()
-                speechRecognizer = null
-            }
-
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                setRecognitionListener(object : RecognitionListener {
-                    override fun onReadyForSpeech(params: Bundle?) {
-                        _state.value = VoiceState.LISTENING
-                        _statusText.value = "تحدث الآن، المساعد الصوتي يستمع إليك..."
-                    }
-
-                    override fun onBeginningOfSpeech() {
-                        _state.value = VoiceState.LISTENING
-                        _statusText.value = "جاري التقاط موجات صوتك..."
-                    }
-
-                    override fun onRmsChanged(rmsdB: Float) {
-                        // Visual feedback can use this rms value if needed
-                    }
-
-                    override fun onBufferReceived(buffer: ByteArray?) {}
-
-                    override fun onEndOfSpeech() {
-                        _state.value = VoiceState.PROCESSING
-                        _statusText.value = "جاري تجميع الكلمات وتحليلها..."
-                    }
-
-                    override fun onError(error: Int) {
-                        val message = when (error) {
-                            SpeechRecognizer.ERROR_AUDIO -> "خطأ في تسجيل الصوت"
-                            SpeechRecognizer.ERROR_CLIENT -> "خطأ في الاتصال بالهاتف"
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "صلاحية استخدام الميكروفون مرفوضة"
-                            SpeechRecognizer.ERROR_NETWORK -> "خطأ في اتصال الشبكة"
-                            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "انتهت مهلة اتصال الشبكة"
-                            SpeechRecognizer.ERROR_NO_MATCH -> "لم نتمكن من فهم الكلام، يرجى إعادة المحاولة"
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "المعالج مشغول حالياً"
-                            SpeechRecognizer.ERROR_SERVER -> "خطأ من خادم التعرف على الصوت"
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "لم يتم رصد أي كلام، يرجى تشغيل الميكروفون والتحدث"
-                            else -> "حدث خطأ غير معروف في رصد الصوت"
-                        }
-                        
-                        Log.e(TAG, "Speech recognition error code: $error - $message")
-                        _state.value = VoiceState.ERROR
-                        _statusText.value = message
-                        
-                        // Speak error feedback locally
-                        speak(message, context)
-                    }
-
-                    override fun onResults(results: Bundle?) {
-                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        val textResult = matches?.firstOrNull()
-                        if (!textResult.isNullOrEmpty()) {
-                            _recognizedText.value = textResult
-                            _state.value = VoiceState.PROCESSING
-                            _statusText.value = "سمعتك تقول: \"$textResult\""
-                            onSpeechResultListener?.invoke(textResult)
-                        } else {
-                            _state.value = VoiceState.ERROR
-                            _statusText.value = "عذراً، لم يتم رصد أي نص مفهوم."
-                            speak("عذراً، لم أفهم كلامك جيداً. يرجى إعادة المحاولة.", context)
-                        }
-                    }
-
-                    override fun onPartialResults(partialResults: Bundle?) {
-                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        val partial = matches?.firstOrNull() ?: ""
-                        if (partial.isNotEmpty()) {
-                            _recognizedText.value = partial
-                            _statusText.value = "جاري الاستماع: $partial..."
-                        }
-                    }
-
-                    override fun onEvent(eventType: Int, params: Bundle?) {}
+            val setupJson = JSONObject().apply {
+                put("setup", JSONObject().apply {
+                    put("model", "models/gemini-2.0-flash-exp")
+                    put("generationConfig", JSONObject().apply {
+                        put("responseModalities", JSONArray().apply {
+                            put("AUDIO")
+                        })
+                        put("speechConfig", JSONObject().apply {
+                            put("voiceConfig", JSONObject().apply {
+                                put("prebuiltVoiceConfig", JSONObject().apply {
+                                    put("voiceName", "Aoede")
+                                })
+                            })
+                        })
+                    })
+                    put("systemInstruction", JSONObject().apply {
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("text", systemInstruction)
+                            })
+                        })
+                    })
                 })
             }
+            webSocket.send(setupJson.toString())
+            Log.d(TAG, "Setup config message sent.")
 
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-AE") // Gulf / General Arabic profile
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ar")
-                putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, "ar")
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            sessionScope?.launch(Dispatchers.Main) {
+                _state.value = VoiceState.LISTENING
+                _statusText.value = "البث المباشر نشط وصوت Gemini يتحدث، تكلم الآن..."
+                startAudioHardware(webSocket)
             }
-            
-            speechRecognizer?.startListening(intent)
-
         } catch (e: Exception) {
             e.printStackTrace()
             _state.value = VoiceState.ERROR
-            _statusText.value = "تعذر تشغيل خدمة الميكروفون المدمجة"
+            _statusText.value = "فشل في إرسال حزمة التكوين."
         }
     }
 
-    fun stopListening() {
+    @SuppressLint("MissingPermission")
+    private fun startAudioHardware(ws: WebSocket) {
+        // 1. Setup AudioTrack for Playback (24kHz Mono 16bit PCM)
         try {
-            speechRecognizer?.stopListening()
-            speechRecognizer?.cancel()
+            val sampleRateOut = 24000
+            val minBufOut = AudioTrack.getMinBufferSize(
+                sampleRateOut,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            )
+            val track = AudioTrack(
+                AudioManager.STREAM_MUSIC,
+                sampleRateOut,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                minBufOut,
+                AudioTrack.MODE_STREAM
+            )
+            audioTrack = track
+            track.play()
+
+            playbackJob = sessionScope?.launch(Dispatchers.Default) {
+                try {
+                    for (pcmBytes in audioBufferChannel) {
+                        track.write(pcmBytes, 0, pcmBytes.size)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error initiating AudioTrack: ${e.localizedMessage}")
         }
-    }
 
-    fun speak(text: String, context: Context) {
-        val cleanText = text.substringBefore("COMMAND:").trim()
-        if (cleanText.isEmpty()) return
-        
-        initializeTts(context)
-        
-        if (isTtsInitialized) {
-            _state.value = VoiceState.SPEAKING
-            _statusText.value = "جاري التحدث مع العميل..."
-            textToSpeech?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, "POS_SPEECH_ID")
-        } else {
-            // Try again after a short delay
-            _statusText.value = "جاري تحضير المحرك الصوتي..."
-        }
-    }
-
-    fun stopSpeaking() {
+        // 2. Setup AudioRecord for Microphone streaming input (16kHz Mono 16bit PCM)
         try {
-            if (isTtsSpeaking) {
-                textToSpeech?.stop()
-                isTtsSpeaking = false
-                _state.value = VoiceState.INACTIVE
+            val sampleRateIn = 16000
+            val minBufIn = AudioRecord.getMinBufferSize(
+                sampleRateIn,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            )
+            val recorder = AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                sampleRateIn,
+                AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+                minBufIn
+            )
+            audioRecord = recorder
+            recorder.startRecording()
+
+            recordingJob = sessionScope?.launch(Dispatchers.IO) {
+                val buffer = ByteArray(minBufIn)
+                while (isActive) {
+                    val read = recorder.read(buffer, 0, buffer.size)
+                    if (read > 0) {
+                        val pcmBytes = buffer.copyOf(read)
+                        val base64Data = Base64.encodeToString(pcmBytes, Base64.NO_WRAP)
+
+                        val inputJson = JSONObject().apply {
+                            put("realTimeInput", JSONObject().apply {
+                                put("mediaChunks", JSONArray().apply {
+                                    put(JSONObject().apply {
+                                        put("mimeType", "audio/pcm")
+                                        put("data", base64Data)
+                                    })
+                                })
+                            })
+                        }
+                        ws.send(inputJson.toString())
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting AudioRecord: ${e.localizedMessage}")
+            _state.value = VoiceState.ERROR
+            _statusText.value = "لم نتمكن من الوصول للميكروفون لتنفيذ البث المباشر."
+        }
+    }
+
+    private fun handleServerMessage(text: String) {
+        try {
+            val json = JSONObject(text)
+
+            val serverContent = json.optJSONObject("serverContent")
+            if (serverContent != null) {
+                // If model of serverContent says interrupted, immediately flush playback queue!
+                val interrupted = serverContent.optBoolean("interrupted", false)
+                if (interrupted) {
+                    Log.d(TAG, "Gemini detected interruption! Flushing local audio playbacks...")
+                    clearPlaybackBuffer()
+                    accumulatedResponseText = ""
+                    _recognizedText.value = "تمت المقاطعة صوتاً..."
+                    _state.value = VoiceState.LISTENING
+                    _statusText.value = "يستمع..."
+                    return
+                }
+
+                val modelTurn = serverContent.optJSONObject("modelTurn")
+                if (modelTurn != null) {
+                    _state.value = VoiceState.SPEAKING
+                    _statusText.value = "Gemini يجيب صوتياً الآن..."
+
+                    val parts = modelTurn.optJSONArray("parts")
+                    if (parts != null) {
+                        for (i in 0 until parts.length()) {
+                            val part = parts.optJSONObject(i) ?: continue
+
+                            val textPart = part.optString("text")
+                            if (!textPart.isNullOrEmpty()) {
+                                accumulatedResponseText += textPart
+                                _recognizedText.value = accumulatedResponseText
+                            }
+
+                            val inlineData = part.optJSONObject("inlineData")
+                            if (inlineData != null) {
+                                val b64Data = inlineData.optString("data", "")
+                                if (b64Data.isNotEmpty()) {
+                                    try {
+                                        val pcmBytes = Base64.decode(b64Data, Base64.DEFAULT)
+                                        audioBufferChannel.trySend(pcmBytes)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                val turnComplete = serverContent.optBoolean("turnComplete", false)
+                if (turnComplete) {
+                    _state.value = VoiceState.LISTENING
+                    _statusText.value = "البث نشط ويستمع إليك..."
+
+                    val fullText = accumulatedResponseText
+                    if (fullText.contains("COMMAND:")) {
+                        sessionScope?.launch(Dispatchers.Main) {
+                            onCommandExtractedListener?.invoke(fullText)
+                        }
+                    }
+                    accumulatedResponseText = "" // reset turn
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "handleServerMessage error: ${e.localizedMessage}")
+        }
+    }
+
+    private fun clearPlaybackBuffer() {
+        while (audioBufferChannel.tryReceive().isSuccess) { /* flush */ }
+        try {
+            audioTrack?.apply {
+                stop()
+                flush()
+                play()
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    fun destroy() {
+    fun stopSession() {
+        _state.value = VoiceState.INACTIVE
+        _statusText.value = "المساعد الصوتي غير نشط"
+        _recognizedText.value = ""
+
+        recordingJob?.cancel()
+        recordingJob = null
+
+        playbackJob?.cancel()
+        playbackJob = null
+
+        sessionScope?.cancel()
+        sessionScope = null
+
+        while (audioBufferChannel.tryReceive().isSuccess) { /* clear */ }
+
         try {
-            speechRecognizer?.destroy()
-            speechRecognizer = null
-            textToSpeech?.shutdown()
-            textToSpeech = null
-            isTtsInitialized = false
-            _state.value = VoiceState.INACTIVE
+            audioRecord?.apply {
+                if (state == AudioRecord.STATE_INITIALIZED) {
+                    try { stop() } catch(e: Exception){}
+                }
+                release()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        audioRecord = null
+
+        try {
+            audioTrack?.apply {
+                if (state == AudioTrack.STATE_INITIALIZED) {
+                    try {
+                        stop()
+                        flush()
+                    } catch(e: Exception){}
+                }
+                release()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        audioTrack = null
+
+        try {
+            webSocket?.close(1000, "App closed session")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        webSocket = null
+        okHttpClient = null
+    }
+
+    fun destroy() {
+        stopSession()
     }
 }
