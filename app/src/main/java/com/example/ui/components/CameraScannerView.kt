@@ -95,6 +95,7 @@ fun CameraScannerView(
     var antiBlurDelay by remember { mutableStateOf(sharedPrefs.getBoolean("camera_anti_blur_delay", false)) }
     var continuousAutofocus by remember { mutableStateOf(sharedPrefs.getBoolean("camera_continuous_autofocus", true)) }
     var exposureIndex by remember { mutableIntStateOf(sharedPrefs.getInt("camera_exposure_index", 0)) }
+    var lensFacing by remember { mutableIntStateOf(sharedPrefs.getInt("camera_lens_facing", CameraSelector.LENS_FACING_BACK)) }
     
     var showSettingsDialog by remember { mutableStateOf(false) }
 
@@ -111,6 +112,7 @@ fun CameraScannerView(
                 antiBlurDelay = antiBlurDelay,
                 continuousAutofocus = continuousAutofocus,
                 exposureIndex = exposureIndex,
+                lensFacing = lensFacing,
                 modifier = Modifier.matchParentSize()
             )
             // Beautiful scanner overlay targeting/aiming window
@@ -260,6 +262,44 @@ fun CameraScannerView(
                     }
                     
                     HorizontalDivider(color = Color(0xFF262626).copy(alpha = 0.5f))
+
+                    // Front/Back Camera Selector Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "تبديل الكاميرا (سيلفي/خلفية)",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (lensFacing == CameraSelector.LENS_FACING_FRONT) "استخدام الكاميرا الأمامية حالياً" else "استخدام الكاميرا الخلفية (افتراضي)",
+                                color = Color(0xFF8A8A8A),
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
+                        Switch(
+                            checked = lensFacing == CameraSelector.LENS_FACING_FRONT,
+                            onCheckedChange = { useFront ->
+                                val newLens = if (useFront) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
+                                lensFacing = newLens
+                                sharedPrefs.edit().putInt("camera_lens_facing", newLens).apply()
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFFFF9800),
+                                checkedTrackColor = Color(0xFFFF9800).copy(alpha = 0.4f),
+                                uncheckedThumbColor = Color(0xFF8A8A8A),
+                                uncheckedTrackColor = Color(0xFF262626)
+                            )
+                        )
+                    }
+                    
+                    HorizontalDivider(color = Color(0xFF262626).copy(alpha = 0.5f))
                     
                     // Exposure compensation Slider
                     Column(
@@ -326,6 +366,7 @@ fun CameraPreviewAndScanner(
     antiBlurDelay: Boolean,
     continuousAutofocus: Boolean,
     exposureIndex: Int,
+    lensFacing: Int,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -447,125 +488,129 @@ fun CameraPreviewAndScanner(
         }
     }
 
-    AndroidView(
-        factory = { ctx ->
-            val previewView = PreviewView(ctx).apply {
-                scaleType = PreviewView.ScaleType.FILL_CENTER
-                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
-            }
+    key(lensFacing) {
+        AndroidView(
+            factory = { ctx ->
+                val previewView = PreviewView(ctx).apply {
+                    scaleType = PreviewView.ScaleType.FILL_CENTER
+                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                }
 
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-            cameraProviderFuture.addListener({
-                val cameraProvider = cameraProviderFuture.get()
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+                cameraProviderFuture.addListener({
+                    val cameraProvider = cameraProviderFuture.get()
 
-                // Preview Use Case set to crisp 720p for optimal line contrast
-                val preview = Preview.Builder()
-                    .setTargetResolution(android.util.Size(1280, 720))
-                    .build().also {
-                        it.surfaceProvider = previewView.surfaceProvider
-                    }
+                    // Preview Use Case set to crisp 720p for optimal line contrast
+                    val preview = Preview.Builder()
+                        .setTargetResolution(android.util.Size(1280, 720))
+                        .build().also {
+                            it.surfaceProvider = previewView.surfaceProvider
+                        }
 
-                // ImageAnalysis Use Case set to 720p with non-blocking latest frames
-                val imageAnalysis = ImageAnalysis.Builder()
-                    .setTargetResolution(android.util.Size(1280, 720))
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
+                    // ImageAnalysis Use Case set to 720p with non-blocking latest frames
+                    val imageAnalysis = ImageAnalysis.Builder()
+                        .setTargetResolution(android.util.Size(1280, 720))
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
 
-                imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                    // 0. Delay processing if initial focusing delay is not over yet
-                    if (!isInitialDelayOver) {
-                        imageProxy.close()
-                        return@setAnalyzer
-                    }
-
-                    @SuppressLint("UnsafeOptInUsageError")
-                    val mediaImage = imageProxy.image
-                    if (mediaImage != null) {
-                        val image = InputImage.fromMediaImage(
-                            mediaImage,
-                            imageProxy.imageInfo.rotationDegrees
-                        )
-
-                        // 1. Check Atomic Processing Lock
-                        if (isProcessing.get()) {
+                    imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+                        // 0. Delay processing if initial focusing delay is not over yet
+                        if (!isInitialDelayOver) {
                             imageProxy.close()
                             return@setAnalyzer
                         }
 
-                        scanner.process(image)
-                            .addOnSuccessListener { barcodes ->
-                                for (barcode in barcodes) {
-                                    val code = barcode.rawValue
-                                    if (!code.isNullOrEmpty() && isValidBarcode(code)) {
-                                        val now = System.currentTimeMillis()
-                                        
-                                        // 2. Strict cooldown check (1.5 seconds) after any scan
-                                        if (now - lastScannedTime < cooldownMs) {
-                                            break
-                                        }
+                        @SuppressLint("UnsafeOptInUsageError")
+                        val mediaImage = imageProxy.image
+                        if (mediaImage != null) {
+                            val image = InputImage.fromMediaImage(
+                                mediaImage,
+                                imageProxy.imageInfo.rotationDegrees
+                            )
 
-                                        // 3. Atomically acquire scanning lock to run "One Scan = One Action"
-                                        if (isProcessing.compareAndSet(false, true)) {
-                                            onBarcodeDetected(code) { isSuccess ->
-                                                if (isSuccess) {
-                                                    lastScannedTime = System.currentTimeMillis()
-                                                    clearBarcodeBuffer()
-                                                } else {
-                                                    // Immediately reset lock on error/failure
-                                                    isProcessing.set(false)
+                            // 1. Check Atomic Processing Lock
+                            if (isProcessing.get()) {
+                                imageProxy.close()
+                                return@setAnalyzer
+                            }
+
+                            scanner.process(image)
+                                .addOnSuccessListener { barcodes ->
+                                    for (barcode in barcodes) {
+                                        val code = barcode.rawValue
+                                        if (!code.isNullOrEmpty() && isValidBarcode(code)) {
+                                            val now = System.currentTimeMillis()
+                                            
+                                            // 2. Strict cooldown check (1.5 seconds) after any scan
+                                            if (now - lastScannedTime < cooldownMs) {
+                                                break
+                                            }
+
+                                            // 3. Atomically acquire scanning lock to run "One Scan = One Action"
+                                            if (isProcessing.compareAndSet(false, true)) {
+                                                onBarcodeDetected(code) { isSuccess ->
+                                                    if (isSuccess) {
+                                                        lastScannedTime = System.currentTimeMillis()
+                                                        clearBarcodeBuffer()
+                                                    } else {
+                                                        // Immediately reset lock on error/failure
+                                                        isProcessing.set(false)
+                                                    }
                                                 }
                                             }
+                                            break // Only process first valid barcode found in this frame
                                         }
-                                        break // Only process first valid barcode found in this frame
                                     }
                                 }
-                            }
-                            .addOnFailureListener { e ->
-                                Log.e("CameraPreviewAndScanner", "MLKit scanning error: ", e)
-                            }
-                            .addOnCompleteListener {
-                                imageProxy.close()
-                            }
-                    } else {
-                        imageProxy.close()
+                                .addOnFailureListener { e ->
+                                    Log.e("CameraPreviewAndScanner", "MLKit scanning error: ", e)
+                                }
+                                .addOnCompleteListener {
+                                    imageProxy.close()
+                                }
+                        } else {
+                            imageProxy.close()
+                        }
                     }
-                }
 
-                // Use Back Camera as default
-                val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                    // Dynamically set cameraSelector based on the lensFacing state
+                    val cameraSelector = CameraSelector.Builder()
+                        .requireLensFacing(lensFacing)
+                        .build()
 
-                try {
-                    cameraProvider.unbindAll()
-                    val camera = cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        cameraSelector,
-                        preview,
-                        imageAnalysis
-                    )
-                    
-                    cameraControl = camera.cameraControl
-                    val exposureState = camera.cameraInfo.exposureState
-                    isExposureSupported = exposureState.isExposureCompensationSupported
-                    if (isExposureSupported) {
-                        minExposure = exposureState.exposureCompensationRange.lower
-                        maxExposure = exposureState.exposureCompensationRange.upper
+                    try {
+                        cameraProvider.unbindAll()
+                        val camera = cameraProvider.bindToLifecycle(
+                            lifecycleOwner,
+                            cameraSelector,
+                            preview,
+                            imageAnalysis
+                        )
+                        
+                        cameraControl = camera.cameraControl
+                        val exposureState = camera.cameraInfo.exposureState
+                        isExposureSupported = exposureState.isExposureCompensationSupported
+                        if (isExposureSupported) {
+                            minExposure = exposureState.exposureCompensationRange.lower
+                            maxExposure = exposureState.exposureCompensationRange.upper
+                        }
+                        
+                        camera.cameraControl.cancelFocusAndMetering()
+                    } catch (exc: Exception) {
+                        Log.e("CameraPreviewAndScanner", "Camera X binding failed", exc)
                     }
-                    
-                    camera.cameraControl.cancelFocusAndMetering()
-                } catch (exc: Exception) {
-                    Log.e("CameraPreviewAndScanner", "Camera X binding failed", exc)
-                }
 
-            }, ContextCompat.getMainExecutor(ctx))
+                }, ContextCompat.getMainExecutor(ctx))
 
-            previewView
-        },
-        modifier = modifier
-    )
+                previewView
+            },
+            modifier = modifier
+        )
+    }
 }
 
 @Composable

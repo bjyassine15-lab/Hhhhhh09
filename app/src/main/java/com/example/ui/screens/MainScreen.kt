@@ -11,6 +11,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -30,6 +33,9 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -37,43 +43,97 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.ui.viewmodel.PosViewModel
+import com.example.ui.components.VoiceAssistantManager
+import com.example.ui.components.VoiceState
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalPermissionsApi::class)
 @Composable
 fun MainScreen(
     viewModel: PosViewModel,
     onThemeToggle: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
+
+    // Permissions for Record Audio
+    val recordAudioPermissionState = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
+
+    // Voice conversation states
+    var isVoiceSessionActive by remember { mutableStateOf(false) }
+    val voiceState by VoiceAssistantManager.state.collectAsState()
+    val voiceStatusText by VoiceAssistantManager.statusText.collectAsState()
+    val voiceRecognizedText by VoiceAssistantManager.recognizedText.collectAsState()
+
+    // Track when Gemini replies
+    val chatMessages by viewModel.aiChatMessages.collectAsState()
+    val isAiLoading by viewModel.isAiLoading.collectAsState()
+    var lastMessageCount by remember { mutableIntStateOf(chatMessages.size) }
 
     // Screen navigation tracking
     var selectedTab by remember { mutableIntStateOf(0) }
 
     // Dialog state for backup protection
     var showBackupDialog by remember { mutableStateOf(false) }
+    val pendingAction by viewModel.pendingAction.collectAsState()
+
+    // Speech feedback hook: speak assistant responses out loud in voice mode
+    LaunchedEffect(chatMessages.size) {
+        if (isVoiceSessionActive && chatMessages.size > lastMessageCount) {
+            val lastMsg = chatMessages.lastOrNull()
+            if (lastMsg != null && lastMsg.sender == "advisor") {
+                // Read response text aloud
+                VoiceAssistantManager.speak(lastMsg.text, context)
+            }
+        }
+        lastMessageCount = chatMessages.size
+    }
+
+    // Stop speaking/listening when leaving voice mode or when screen is disposed
+    DisposableEffect(Unit) {
+        onDispose {
+            VoiceAssistantManager.destroy()
+        }
+    }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            selectedTab = if (selectedTab == 3) 0 else 3
-                        },
+                    Box(
                         modifier = Modifier
                             .padding(start = 12.dp)
                             .size(36.dp)
+                            .clip(CircleShape)
                             .background(
-                                color = if (selectedTab == 3) Color(0xFFE040FB).copy(alpha = 0.15f) else Color.Transparent,
-                                shape = CircleShape
+                                color = if (selectedTab == 3 || isVoiceSessionActive) Color(0xFFE040FB).copy(alpha = 0.15f) else Color.Transparent
                             )
+                            .combinedClickable(
+                                onClick = {
+                                    selectedTab = if (selectedTab == 3) 0 else 3
+                                },
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (recordAudioPermissionState.status.isGranted) {
+                                        isVoiceSessionActive = true
+                                        VoiceAssistantManager.startListening(context) { result ->
+                                            viewModel.sendPromptToAi(result, context)
+                                        }
+                                    } else {
+                                        recordAudioPermissionState.launchPermissionRequest()
+                                    }
+                                }
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.AutoAwesome,
                             contentDescription = "المستشار الذكي",
-                            tint = if (selectedTab == 3) Color(0xFFE040FB) else Color(0xFF8A8A8A),
+                            tint = if (selectedTab == 3 || isVoiceSessionActive) Color(0xFFE040FB) else Color(0xFF8A8A8A),
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -279,6 +339,242 @@ fun MainScreen(
             viewModel = viewModel,
             onDismiss = { showBackupDialog = false }
         )
+    }
+
+    // --- DIALOG: CONFIRMATION BARRIER (PENDING ACTION EXECUTED FROM VOICE / ADVISOR) ---
+    pendingAction?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelPendingAction() },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "موافقة مطلوبة لتعديل البيانات",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Text(
+                    text = pending.description,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmPendingAction() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("تأكيد العملية")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.cancelPendingAction() }
+                ) {
+                    Text("إلغاء الأمر", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        )
+    }
+
+    // --- CONTINUOUS VOICE OVERLAY SCREEN SHIELD ---
+    if (isVoiceSessionActive) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .pointerInput(Unit) {
+                    detectTapGestures {
+                        isVoiceSessionActive = false
+                        VoiceAssistantManager.stopListening()
+                        VoiceAssistantManager.stopSpeaking()
+                    }
+                },
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 24.dp)
+                    .navigationBarsPadding(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF141414),
+                    contentColor = Color.White
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 16.dp),
+                border = BorderStroke(1.dp, Color(0xFFE040FB).copy(alpha = 0.3f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Header Bar
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        when (voiceState) {
+                                            VoiceState.LISTENING -> Color(0xFF4CAF50)
+                                            VoiceState.SPEAKING -> Color(0xFF00E5FF)
+                                            VoiceState.PROCESSING -> Color(0xFFFF9800)
+                                            VoiceState.ERROR -> Color(0xFFEF5350)
+                                            else -> Color(0xFF757575)
+                                        }
+                                    )
+                            )
+                            Text(
+                                "المحادثة الصوتية المباشرة (Gemini)",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                        }
+                        
+                        IconButton(
+                            onClick = {
+                                isVoiceSessionActive = false
+                                VoiceAssistantManager.stopListening()
+                                VoiceAssistantManager.stopSpeaking()
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "إغلاق",
+                                tint = Color(0xFF8A8A8A),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    // Microphone Status Pulse Circle
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(
+                                when (voiceState) {
+                                    VoiceState.LISTENING -> Color(0xFF4CAF50).copy(alpha = 0.15f)
+                                    VoiceState.SPEAKING -> Color(0xFF00E5FF).copy(alpha = 0.15f)
+                                    VoiceState.PROCESSING -> Color(0xFFFF9800).copy(alpha = 0.15f)
+                                    else -> Color.White.copy(alpha = 0.05f)
+                                }
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = when (voiceState) {
+                                VoiceState.SPEAKING -> Icons.Default.VolumeUp
+                                else -> Icons.Default.Mic
+                            },
+                            contentDescription = "الميكروفون",
+                            tint = when (voiceState) {
+                                VoiceState.LISTENING -> Color(0xFF4CAF50)
+                                VoiceState.SPEAKING -> Color(0xFF00E5FF)
+                                VoiceState.PROCESSING -> Color(0xFFFF9800)
+                                VoiceState.ERROR -> Color(0xFFEF5350)
+                                else -> Color.White
+                            },
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+
+                    // Voice Output/Transcribed status
+                    Text(
+                        text = voiceStatusText,
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.9f),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 20.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+
+                    // Show Transcription query if available
+                    if (voiceRecognizedText.isNotEmpty()) {
+                        Text(
+                            text = "\"$voiceRecognizedText\"",
+                            fontSize = 12.sp,
+                            color = Color(0xFF8A8A8A),
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Normal,
+                            lineHeight = 18.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+
+                    // Responsive Dynamic Controls
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (voiceState == VoiceState.INACTIVE || voiceState == VoiceState.ERROR || voiceState == VoiceState.SPEAKING) {
+                            Button(
+                                onClick = {
+                                    VoiceAssistantManager.startListening(context) { result ->
+                                        viewModel.sendPromptToAi(result, context)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFE040FB)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("تحدث مجدداً", fontSize = 12.sp)
+                            }
+                        } else if (voiceState == VoiceState.LISTENING) {
+                            Button(
+                                onClick = {
+                                    VoiceAssistantManager.stopListening()
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFEF5350)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("إيقاف الاصغاء", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
