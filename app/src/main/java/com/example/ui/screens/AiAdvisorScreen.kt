@@ -50,6 +50,7 @@ fun AiAdvisorScreen(
 
     val chatMessages by viewModel.aiChatMessages.collectAsState()
     val isLoading by viewModel.isAiLoading.collectAsState()
+    val pendingAction by viewModel.pendingAction.collectAsState()
 
     var inputPromptText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -682,6 +683,57 @@ fun AiAdvisorScreen(
                 }
             },
             dismissButton = null
+        )
+    }
+
+    // --- DIALOG: CONFIRMATION BARRIER (PENDING ACTION) ---
+    pendingAction?.let { pending ->
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelPendingAction() },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(36.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "موافقة مطلوبة لتعديل البيانات",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            text = {
+                Text(
+                    text = pending.description,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmPendingAction() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("تأكيد العملية")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.cancelPendingAction() }
+                ) {
+                    Text("إلغاء الأمر", color = MaterialTheme.colorScheme.error)
+                }
+            }
         )
     }
 }

@@ -11,9 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -26,9 +23,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.alpha
-import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.geometry.Offset
@@ -36,9 +30,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
@@ -46,182 +37,63 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.ui.viewmodel.PosViewModel
-import com.example.ui.components.VoiceAssistantManager
-import com.example.ui.components.VoiceState
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     viewModel: PosViewModel,
     onThemeToggle: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
-
-    // Permissions for Record Audio
-    val recordAudioPermissionState = rememberPermissionState(android.Manifest.permission.RECORD_AUDIO)
-
-    // Voice conversation states
-    val voiceState by VoiceAssistantManager.state.collectAsState()
-    val voiceStatusText by VoiceAssistantManager.statusText.collectAsState()
-    val voiceRecognizedText by VoiceAssistantManager.recognizedText.collectAsState()
-    val isVoiceSessionActive = remember(voiceState) {
-        voiceState != VoiceState.INACTIVE && voiceState != VoiceState.ERROR
-    }
-
-    // Track when Gemini replies
-    val chatMessages by viewModel.aiChatMessages.collectAsState()
-    val isAiLoading by viewModel.isAiLoading.collectAsState()
-
-    // Interactive Pulse Animation configurations for hands-free mode
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseScale by if (isVoiceSessionActive) {
-        infiniteTransition.animateFloat(
-            initialValue = 1.0f,
-            targetValue = 1.35f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1200, easing = LinearOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "scale"
-        )
-    } else {
-        remember { mutableStateOf(1.0f) }
-    }
-
-    val pulseAlpha by if (isVoiceSessionActive) {
-        infiniteTransition.animateFloat(
-            initialValue = 0.5f,
-            targetValue = 0.1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1200, easing = LinearOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "alpha"
-        )
-    } else {
-        remember { mutableStateOf(0.15f) }
-    }
 
     // Screen navigation tracking
     var selectedTab by remember { mutableIntStateOf(0) }
 
     // Dialog state for backup protection
     var showBackupDialog by remember { mutableStateOf(false) }
-    val pendingAction by viewModel.pendingAction.collectAsState()
-
-    // Stop speaking/listening when leaving voice mode or when screen is disposed
-    DisposableEffect(Unit) {
-        onDispose {
-            VoiceAssistantManager.destroy()
-        }
-    }
 
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 navigationIcon = {
-                    Box(
-                        modifier = Modifier.padding(start = 12.dp),
-                        contentAlignment = Alignment.Center
+                    IconButton(
+                        onClick = {
+                            selectedTab = if (selectedTab == 3) 0 else 3
+                        },
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .size(36.dp)
+                            .background(
+                                color = if (selectedTab == 3) Color(0xFFE040FB).copy(alpha = 0.15f) else Color.Transparent,
+                                shape = CircleShape
+                            )
                     ) {
-                        // Ambient Breathing Glow when Live Voice session is active
-                        if (isVoiceSessionActive) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .scale(pulseScale)
-                                    .alpha(pulseAlpha)
-                                    .background(Color(0xFFE040FB), shape = CircleShape)
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    color = if (selectedTab == 3 || isVoiceSessionActive) Color(0xFFE040FB).copy(alpha = if (isVoiceSessionActive) 0.35f else 0.15f) else Color.Transparent
-                                )
-                                .combinedClickable(
-                                    onClick = {
-                                        selectedTab = if (selectedTab == 3) 0 else 3
-                                    },
-                                    onLongClick = {
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        if (recordAudioPermissionState.status.isGranted) {
-                                            if (isVoiceSessionActive) {
-                                                VoiceAssistantManager.stopSession()
-                                            } else {
-                                                val sysIns = viewModel.getLiveSystemInstruction()
-                                                val apiKey = com.example.data.util.GeminiService.getSavedApiKey(context)
-                                                VoiceAssistantManager.startSession(
-                                                    context = context,
-                                                    apiKey = apiKey,
-                                                    systemInstruction = sysIns,
-                                                    onCommandExtracted = { responseText ->
-                                                        viewModel.handleAiResponseAndExtractCommands(responseText)
-                                                    }
-                                                )
-                                            }
-                                        } else {
-                                            recordAudioPermissionState.launchPermissionRequest()
-                                        }
-                                    }
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = "المستشار الذكي",
-                                tint = if (selectedTab == 3 || isVoiceSessionActive) Color(0xFFE040FB) else Color(0xFF8A8A8A),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "المستشار الذكي",
+                            tint = if (selectedTab == 3) Color(0xFFE040FB) else Color(0xFF8A8A8A),
+                            modifier = Modifier.size(16.dp)
+                        )
                     }
                 },
                 title = {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Prime Ledger",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp,
-                            letterSpacing = 1.sp,
-                            color = Color(0xFF00E5FF),
-                            style = androidx.compose.ui.text.TextStyle(
-                                shadow = Shadow(
-                                    color = Color(0xFF00E5FF).copy(alpha = 0.4f),
-                                    offset = Offset(0f, 0f),
-                                    blurRadius = 12f
-                                )
-                            ),
-                            textAlign = TextAlign.Center
-                        )
-                        if (isVoiceSessionActive) {
-                            Text(
-                                text = voiceStatusText,
-                                color = Color(0xFFE040FB),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                style = androidx.compose.ui.text.TextStyle(
-                                    shadow = Shadow(
-                                        color = Color(0xFFE040FB).copy(alpha = 0.4f),
-                                        offset = Offset(0f, 0f),
-                                        blurRadius = 6f
-                                    )
-                                ),
-                                textAlign = TextAlign.Center
+                    Text(
+                        text = "Prime Ledger",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        letterSpacing = 1.sp,
+                        color = Color(0xFF00E5FF),
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = Shadow(
+                                color = Color(0xFF00E5FF).copy(alpha = 0.4f),
+                                offset = Offset(0f, 0f),
+                                blurRadius = 12f
                             )
-                        }
-                    }
+                        ),
+                        textAlign = TextAlign.Center
+                    )
                 },
                 actions = {
                     val isDarkThemeNow = MaterialTheme.colorScheme.background == Color(0xFF000000)
@@ -408,59 +280,6 @@ fun MainScreen(
             onDismiss = { showBackupDialog = false }
         )
     }
-
-    // --- DIALOG: CONFIRMATION BARRIER (PENDING ACTION EXECUTED FROM VOICE / ADVISOR) ---
-    pendingAction?.let { pending ->
-        AlertDialog(
-            onDismissRequest = { viewModel.cancelPendingAction() },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(36.dp)
-                )
-            },
-            title = {
-                Text(
-                    text = "موافقة مطلوبة لتعديل البيانات",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            text = {
-                Text(
-                    text = pending.description,
-                    fontSize = 12.sp,
-                    lineHeight = 18.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = { viewModel.confirmPendingAction() },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text("تأكيد العملية")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { viewModel.cancelPendingAction() }
-                ) {
-                    Text("إلغاء الأمر", color = MaterialTheme.colorScheme.error)
-                }
-            }
-        )
-    }
-
-    // Voice overlay is removed for a clean background hands-free conversation experience.
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

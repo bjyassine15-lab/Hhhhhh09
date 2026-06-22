@@ -635,7 +635,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun handleAiResponseAndExtractCommands(rawResponse: String) {
+    private fun handleAiResponseAndExtractCommands(rawResponse: String) {
         var cleanText = rawResponse
         var command: AppCommand? = null
 
@@ -856,39 +856,6 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
-    }
-
-    fun getLiveSystemInstruction(): String {
-        val dbSummaryContext = buildStoreDataSummary()
-        return """
-            أنت مستشار مالي ومسؤول مخزن منفّذ ومساعد ذكي لتطبيق كاشير (Action-Taker). أنت الآن تملك صلاحية اقتراح وتنفيذ إجراءات على قاعدة البيانات ومخزن التطبيق بناءً على كلام المستخدم والتحليل الحسابي الملحق بالبث المباشر.
-            أنت في محادثة صوتية تفاعلية حية ثنائية الاتجاه مع الكاشير (العميل) عبر الهاتف/الرنين. يرجى التحدث بلباقة ودقة وبأسلوب غاية في الرقي والإقناع باللغة العربية.
-            
-            ملخص حالة المخزن والبيانات الفعلي الحالية هو كالتالي:
-            $dbSummaryContext
-            
-            تنبيه هام حول الأوامر:
-            عندما يطلب العميل أي تعديل أو ترتيب أو فلترة أو حذف في المخزن أو حسابات الديون، يجب عليك تضمين الإجراء المناسب في سطر مستقل في نهاية رسالتك يبدأ بـ COMMAND: يليه كائن JSON مباشر يصف الإجراء دون أي علامات ترميز إضافية أو كتل برمجية (no Markdown code blocks).
-            
-            صيغ الأوامر المدعومة المسموحة بالـ JSON هي:
-            1. ترتيب المنتجات: COMMAND:{"action":"sort_products","criteria":"price_asc"} (الخيارات المتاحة لـ criteria: price_asc, price_desc, stock_asc, stock_desc, name_asc)
-            2. فلترة المنتجات بنص: COMMAND:{"action":"filter_products","query":"النص للبحث"}
-            3. حذف منتج: COMMAND:{"action":"delete_product","barcode":"الباركود","productName":"اسم المنتج"}
-            4. تعديل سعر منتج: COMMAND:{"action":"modify_price","barcode":"الباركود","productName":"اسم المنتج","newSalePrice":15.0}
-            5. إضافة دين يدوي لزبون: COMMAND:{"action":"add_debt","customerName":"اسم الزبون","amount":250.0,"note":"ملاحظة الدين الكسبي"}
-            6. تسجيل سداد دين من زبون: COMMAND:{"action":"record_payment","customerName":"اسم الزبون","amountPaid":100.0,"note":"البيان"}
-            7. إضافة منتجات متعددة مرة واحدة: COMMAND:{"action":"add_products","productsList":[{"name":"اسم المنتج","barcode":"الباركود","purchasePrice":10.0,"salePrice":15.0,"stockQuantity":50}]}
-            8. تغيير حد تنبيه نقص المخزون: COMMAND:{"action":"set_alert_threshold","threshold":10}
-            
-            مثال:
-            أبشر يا فندم، سأقوم بترتيب مخزن المنتجات حسب الأسعار لك تصاعدياً.
-            COMMAND:{"action":"sort_products","criteria":"price_asc"}
-            
-            ملاحظات بالغة الأهمية:
-            - لا تلفق وتخلق بيانات كاذبة! استخدم أسماء الزبائن وثمن البيع الفعلي وأسماء المنتجات والباركودات من قائمة البيانات الحقيقية بدقة فائقة.
-            - تذكر: المخزون (0) يعني أن المنتج مسجل ومعروف وموجود ولكنه نفد، فلا تقل أبداً أن المنتج غير موجود، بل تعامل معه بحرفية.
-            - أكتب نص الرد الحواري بلباقة باللغة العربية واشرح الإجراء، ثم ألحق COMMAND: في السطر الأخير.
-        """.trimIndent()
     }
 
     override fun onCleared() {
