@@ -1704,16 +1704,22 @@ fun CustomerTransactionsDialog(
 @Composable
 fun StockAlertsTab(viewModel: PosViewModel) {
     val alerts by viewModel.lowStockProducts.collectAsState()
+    val threshold by viewModel.stockAlertThreshold.collectAsState()
 
-    if (alerts.isEmpty()) {
-        EmptyStateRow(
-            icon = Icons.Default.CheckCircle,
-            title = "مستوى المخازن سليم بالكامل",
-            description = "كل شيء على ما يرام! لا توجد منتجات منخفضة المخزون حالياً والمستودع مؤمن بالكامل بسلام.",
-            accentColor = Color(0xFF4CAF50)
-        )
-    } else {
-        Column(modifier = Modifier.fillMaxSize()) {
+    var showDialog by remember { mutableStateOf(false) }
+    var tempThresholdText by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (alerts.isEmpty()) {
+            Box(modifier = Modifier.weight(1f)) {
+                EmptyStateRow(
+                    icon = Icons.Default.CheckCircle,
+                    title = "مستوى المخازن سليم بالكامل",
+                    description = "كل شيء على ما يرام! لا توجد منتجات منخفضة المخزون حالياً وفق الحد الحالي ($threshold قطع) والمستودع مؤمن بالكامل بسلام.",
+                    accentColor = Color(0xFF4CAF50)
+                )
+            }
+        } else {
             // Notice Banner
             Surface(
                 color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
@@ -1735,7 +1741,7 @@ fun StockAlertsTab(viewModel: PosViewModel) {
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "المنتجات التالية أوشكت كميتها على النفاد (الكمية المتوفرة تساوي أو تقل عن 5 قطع). يرجى التزويد الفوري لها لحفظ سلاسة المستودع.",
+                        text = "المنتجات التالية أوشكت كميتها على النفاد (الكمية المتوفرة تساوي أو تقل عن $threshold قطع). يرجى التزويد الفوري لها لحفظ سلاسة المستودع.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         fontWeight = FontWeight.Medium
@@ -1789,6 +1795,137 @@ fun StockAlertsTab(viewModel: PosViewModel) {
                                     color = MaterialTheme.colorScheme.onErrorContainer
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Persistent Elegant Settings Bar at absolute bottom of tab screen
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "حد تنبيه المخزون الحالي: $threshold قطع",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            IconButton(
+                onClick = {
+                    tempThresholdText = threshold.toString()
+                    showDialog = true
+                },
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "تعديل حد التنبيه",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+
+    // Dynamic modern Material 3 custom threshold configurator dialog
+    if (showDialog) {
+        Dialog(onDismissRequest = { showDialog = false }) {
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "تخصيص حد تنبيه المخزون",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "سيقوم النظام بإرسال إشعارات وتنبيهات في شاشة التقارير للمنتجات التي تنخفض كميتها عن هذا الحد المالي الفعلي.",
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = tempThresholdText,
+                        onValueChange = { tempThresholdText = it },
+                        label = { Text("الحد الأدنى للكمية") },
+                        placeholder = { Text("مثال: 5") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(
+                            onClick = { showDialog = false },
+                            modifier = Modifier.weight(1.5f)
+                        ) {
+                            Text("إلغاء", color = MaterialTheme.colorScheme.error)
+                        }
+                        
+                        Button(
+                            onClick = {
+                                val newVal = tempThresholdText.toIntOrNull()
+                                if (newVal != null && newVal >= 0) {
+                                    viewModel.setStockAlertThreshold(newVal)
+                                    showDialog = false
+                                }
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(2f),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text("حفظ التعديل")
                         }
                     }
                 }

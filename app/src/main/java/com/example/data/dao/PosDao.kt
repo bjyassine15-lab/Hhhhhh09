@@ -19,8 +19,8 @@ interface PosDao {
     @Query("SELECT * FROM products WHERE id = :id LIMIT 1")
     suspend fun getProductById(id: Long): Product?
 
-    @Query("SELECT * FROM products WHERE stockQuantity IS NOT NULL AND stockQuantity <= 5 ORDER BY stockQuantity ASC")
-    fun getLowStockProducts(): Flow<List<Product>>
+    @Query("SELECT * FROM products WHERE stockQuantity IS NOT NULL AND stockQuantity <= :threshold ORDER BY stockQuantity ASC")
+    fun getLowStockProducts(threshold: Int): Flow<List<Product>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProduct(product: Product): Long

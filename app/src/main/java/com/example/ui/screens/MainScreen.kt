@@ -142,21 +142,21 @@ fun MainScreen(
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = if (isSystemInDarkTheme() || MaterialTheme.colorScheme.background == Color(0xFF000000)) Color(0xFF000000) else Color(0xFFFFFFFF)
+                    containerColor = if (MaterialTheme.colorScheme.background == Color(0xFF000000)) Color(0xFF0C0C0C) else Color(0xFFFFFFFF)
                 )
             )
         },
         bottomBar = {
-            val isDark = isSystemInDarkTheme() || MaterialTheme.colorScheme.background == Color(0xFF000000)
+            val isDark = MaterialTheme.colorScheme.background == Color(0xFF000000)
             Surface(
                 modifier = Modifier
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars),
                 color = if (isDark) Color(0xFF000000) else Color(0xFFF4F6F9)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .background(if (isDark) Color(0xFF0D0D0D) else Color(0xFFFFFFFF), shape = RoundedCornerShape(20.dp))
                         .border(if (isDark) BorderStroke(0.dp, Color.Transparent) else BorderStroke(1.dp, Color(0xFFE2E8F0)), shape = RoundedCornerShape(20.dp))

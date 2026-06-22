@@ -22,9 +22,11 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import java.io.File
 import java.util.UUID
 
@@ -44,6 +46,8 @@ sealed class AppCommand {
     data class ModifyProductPrice(val barcode: String, val productName: String, val newSalePrice: Double) : AppCommand()
     data class AddManualDebt(val customerName: String, val amount: Double, val note: String) : AppCommand()
     data class RecordDebtPayment(val customerName: String, val amountPaid: Double, val note: String?) : AppCommand()
+    data class AddProducts(val productsList: List<Product>) : AppCommand()
+    data class SetStockAlertThreshold(val threshold: Int) : AppCommand()
 }
 
 data class PendingAction(
@@ -91,12 +95,25 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = emptyList()
     )
 
+    // Stock alert threshold state (default to 5)
+    private val _stockAlertThreshold = MutableStateFlow<Int>(5)
+    val stockAlertThreshold = _stockAlertThreshold.asStateFlow()
+
+    fun setStockAlertThreshold(newThreshold: Int) {
+        _stockAlertThreshold.value = newThreshold
+    }
+
     // Low stock flow
-    val lowStockProducts: StateFlow<List<Product>> = posDao.getLowStockProducts().stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
-    )
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val lowStockProducts: StateFlow<List<Product>> = _stockAlertThreshold
+        .flatMapLatest { threshold ->
+            posDao.getLowStockProducts(threshold)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     // Customers Flow
     val allCustomers: StateFlow<List<Customer>> = posDao.getAllCustomers().stateIn(
@@ -509,6 +526,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 is AppCommand.ModifyProductPrice -> "هل توافق على تعديل سعر بيع المنتج '${command.productName}' إلى ${command.newSalePrice} د.إ؟"
                 is AppCommand.AddManualDebt -> "هل توافق على تسجيل دين جديد بقيمة ${command.amount} د.إ للزبون '${command.customerName}' بملاحظة: ${command.note}؟"
                 is AppCommand.RecordDebtPayment -> "هل توافق على تسجيل دفعة سداد دين بقيمة ${command.amountPaid} د.إ من الزبون '${command.customerName}'؟"
+                is AppCommand.AddProducts -> "هل توافق على إضافة عدد (${command.productsList.size}) من المنتجات المقترحة من Gemini نهائياً لبيانات المخزن؟"
+                is AppCommand.SetStockAlertThreshold -> "يقترح الذكاء الاصطناعي تغيير حد تنبيه نقص المخزون لتنبيهك عندما يقل المخزون عن (${command.threshold}) قطع، هل توافق؟"
                 else -> "هل توافق على تنفيذ هذا الإجراء المقترح من Gemini؟"
             }
             _pendingAction.value = PendingAction(command, description)
@@ -599,6 +618,16 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                         addSystemChatMessage("⚠️ تعذر استكمال السداد، لم نجد في السجلات زبون يحمل الاسم المباشر '${command.customerName}'.")
                     }
                 }
+                is AppCommand.AddProducts -> {
+                    command.productsList.forEach { p ->
+                        posDao.insertProduct(p)
+                    }
+                    addSystemChatMessage("📦 تم بنجاح إضافة عدد (${command.productsList.size}) من المنتجات الجديدة المقترحة إلى المخزن بنجاح.")
+                }
+                is AppCommand.SetStockAlertThreshold -> {
+                    _stockAlertThreshold.value = command.threshold
+                    addSystemChatMessage("⚙️ تم بنجاح تعديل حد منبه كمية المخزون المنخفض وتعيينه عند: ${command.threshold} قطع.")
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -655,6 +684,27 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                         val note = json.optString("note", null)
                         AppCommand.RecordDebtPayment(customerName, amountPaid, note)
                     }
+                    "add_products" -> {
+                        val arr = json.optJSONArray("productsList")
+                        val list = mutableListOf<Product>()
+                        if (arr != null) {
+                            for (i in 0 until arr.length()) {
+                                val obj = arr.getJSONObject(i)
+                                list.add(Product(
+                                    name = obj.optString("name", "منتج جديد"),
+                                    barcode = obj.optString("barcode", System.currentTimeMillis().toString().takeLast(6)),
+                                    purchasePrice = obj.optDouble("purchasePrice", 0.0),
+                                    salePrice = obj.optDouble("salePrice", 0.0),
+                                    stockQuantity = if (obj.has("stockQuantity")) obj.optInt("stockQuantity") else null
+                                ))
+                            }
+                        }
+                        AppCommand.AddProducts(list)
+                    }
+                    "set_alert_threshold" -> {
+                        val threshold = json.optInt("threshold", 5)
+                        AppCommand.SetStockAlertThreshold(threshold)
+                    }
                     else -> null
                 }
             }
@@ -682,7 +732,7 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         val invoicesList = allInvoices.value
 
         val totalProductsCount = productsList.size
-        val lowStockCount = productsList.count { (it.stockQuantity ?: 0) <= 5 }
+        val lowStockCount = productsList.count { (it.stockQuantity ?: 0) <= _stockAlertThreshold.value }
         val totalStockBuyValue = productsList.sumOf { (it.stockQuantity ?: 0) * it.purchasePrice }
         val totalStockSellValue = productsList.sumOf { (it.stockQuantity ?: 0) * it.salePrice }
         val estimatedTotalProfit = totalStockSellValue - totalStockBuyValue
@@ -763,6 +813,8 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                 4. تعديل سعر منتج: COMMAND:{"action":"modify_price","barcode":"الباركود","productName":"اسم المنتج","newSalePrice":15.0}
                 5. إضافة دين يدوي لزبون: COMMAND:{"action":"add_debt","customerName":"اسم الزبون","amount":250.0,"note":"ملاحظة الدين الكسبي"}
                 6. تسجيل سداد دين من زبون: COMMAND:{"action":"record_payment","customerName":"اسم الزبون","amountPaid":100.0,"note":"البيان"}
+                7. إضافة منتجات متعددة مرة واحدة: COMMAND:{"action":"add_products","productsList":[{"name":"اسم المنتج","barcode":"الباركود","purchasePrice":10.0,"salePrice":15.0,"stockQuantity":50}]}
+                8. تغيير حد تنبيه نقص المخزون: COMMAND:{"action":"set_alert_threshold","threshold":10}
                 
                 مثال:
                 أبشر يا فندم، سأقوم بترتيب مخزن المنتجات حسب الأسعار لك تصاعدياً.
