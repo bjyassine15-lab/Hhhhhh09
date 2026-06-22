@@ -30,9 +30,25 @@ import java.util.UUID
 
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
-    val sender: String, // "user" or "advisor"
+    val sender: String, // "user" or "advisor", or "system"
     val text: String,
     val timestamp: Long = System.currentTimeMillis()
+)
+
+sealed class AppCommand {
+    data class SortProducts(val criteria: String) : AppCommand()
+    data class FilterProducts(val query: String) : AppCommand()
+    data class ViewMetrics(val section: String) : AppCommand()
+    
+    data class DeleteProduct(val barcode: String, val productName: String) : AppCommand()
+    data class ModifyProductPrice(val barcode: String, val productName: String, val newSalePrice: Double) : AppCommand()
+    data class AddManualDebt(val customerName: String, val amount: Double, val note: String) : AppCommand()
+    data class RecordDebtPayment(val customerName: String, val amountPaid: Double, val note: String?) : AppCommand()
+}
+
+data class PendingAction(
+    val command: AppCommand,
+    val description: String
 )
 
 class PosViewModel(application: Application) : AndroidViewModel(application) {
@@ -41,8 +57,35 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val posDao = db.posDao()
 
     // --- STATE MANAGEMENT ---
+    // Sorting & Filtering state flows
+    private val _productSortOrder = MutableStateFlow<String>("none")
+    val productSortOrder = _productSortOrder.asStateFlow()
+
+    private val _productSearchQuery = MutableStateFlow<String>("")
+    val productSearchQuery = _productSearchQuery.asStateFlow()
+
     // Products Flow
-    val allProducts: StateFlow<List<Product>> = posDao.getAllProducts().stateIn(
+    val allProducts: StateFlow<List<Product>> = combine(
+        posDao.getAllProducts(),
+        _productSortOrder,
+        _productSearchQuery
+    ) { products, sortOrder, query ->
+        var list = products
+        if (query.isNotBlank()) {
+            list = list.filter {
+                it.name.contains(query, ignoreCase = true) ||
+                it.barcode.contains(query, ignoreCase = true)
+            }
+        }
+        when (sortOrder) {
+            "price_asc" -> list.sortedBy { it.salePrice }
+            "price_desc" -> list.sortedByDescending { it.salePrice }
+            "stock_asc" -> list.sortedBy { it.stockQuantity ?: 0 }
+            "stock_desc" -> list.sortedByDescending { it.stockQuantity ?: 0 }
+            "name_asc" -> list.sortedBy { it.name }
+            else -> list
+        }
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
@@ -426,6 +469,209 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
     private val _isAiLoading = MutableStateFlow(false)
     val isAiLoading: StateFlow<Boolean> = _isAiLoading.asStateFlow()
 
+    private val _pendingAction = MutableStateFlow<PendingAction?>(null)
+    val pendingAction: StateFlow<PendingAction?> = _pendingAction.asStateFlow()
+
+    fun setPendingAction(action: PendingAction?) {
+        _pendingAction.value = action
+    }
+
+    fun confirmPendingAction() {
+        val pending = _pendingAction.value ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val cmd = pending.command
+            _pendingAction.value = null
+            executeCommandDirectly(cmd)
+        }
+    }
+
+    fun cancelPendingAction() {
+        _pendingAction.value = null
+    }
+
+    fun addSystemChatMessage(text: String) {
+        val currentList = _aiChatMessages.value.toMutableList()
+        currentList.add(ChatMessage(sender = "system", text = text))
+        _aiChatMessages.value = currentList
+    }
+
+    fun executeCommand(command: AppCommand) {
+        val requireConfirmation = when (command) {
+            is AppCommand.SortProducts -> false
+            is AppCommand.FilterProducts -> false
+            is AppCommand.ViewMetrics -> false
+            else -> true
+        }
+
+        if (requireConfirmation) {
+            val description = when (command) {
+                is AppCommand.DeleteProduct -> "هل توافق على حذف المنتج '${command.productName}' ذو الباركود (${command.barcode}) نهائياً من قاعدة البيانات؟"
+                is AppCommand.ModifyProductPrice -> "هل توافق على تعديل سعر بيع المنتج '${command.productName}' إلى ${command.newSalePrice} د.إ؟"
+                is AppCommand.AddManualDebt -> "هل توافق على تسجيل دين جديد بقيمة ${command.amount} د.إ للزبون '${command.customerName}' بملاحظة: ${command.note}؟"
+                is AppCommand.RecordDebtPayment -> "هل توافق على تسجيل دفعة سداد دين بقيمة ${command.amountPaid} د.إ من الزبون '${command.customerName}'؟"
+                else -> "هل توافق على تنفيذ هذا الإجراء المقترح من Gemini؟"
+            }
+            _pendingAction.value = PendingAction(command, description)
+        } else {
+            viewModelScope.launch(Dispatchers.IO) {
+                executeCommandDirectly(command)
+            }
+        }
+    }
+
+    private suspend fun executeCommandDirectly(command: AppCommand) {
+        try {
+            when (command) {
+                is AppCommand.SortProducts -> {
+                    _productSortOrder.value = command.criteria
+                    addSystemChatMessage("⚡ تم إجراء ترتيب تلقائي لقائمة المنتجات: ${
+                        when (command.criteria) {
+                            "price_asc" -> "السعر (من الأقل للأعلى)"
+                            "price_desc" -> "السعر (من الأعلى للأقل)"
+                            "stock_asc" -> "المخزون (من الأقل للأعلى)"
+                            "stock_desc" -> "المخزون (من الأعلى للأقل)"
+                            "name_asc" -> "الاسم أبجدياً"
+                            else -> "الترتيب الافتراضي"
+                        }
+                    }")
+                }
+                is AppCommand.FilterProducts -> {
+                    _productSearchQuery.value = command.query
+                    addSystemChatMessage("⚡ تم فلترة قائمة المنتجات بكلمة البحث: '${command.query}'")
+                }
+                is AppCommand.ViewMetrics -> {
+                    addSystemChatMessage("⚡ تم عرض مؤشرات الأداء الحسابية الخاصة بـ: ${command.section}")
+                }
+                is AppCommand.DeleteProduct -> {
+                    val p = posDao.getProductByBarcode(command.barcode)
+                    if (p != null) {
+                        posDao.deleteProduct(p)
+                        addSystemChatMessage("🗑️ تم حذف المنتج '${command.productName}' بنجاح تمهيداً لأمر Gemini.")
+                    } else {
+                        addSystemChatMessage("⚠️ لم نجد أي منتج يحمل الباركود ${command.barcode} لتنفيذ الحذف.")
+                    }
+                }
+                is AppCommand.ModifyProductPrice -> {
+                    val p = posDao.getProductByBarcode(command.barcode)
+                    if (p != null) {
+                        posDao.updateProduct(p.copy(salePrice = command.newSalePrice))
+                        addSystemChatMessage("✏️ تم تعديل سعر بيع المنتج '${command.productName}' إلى ${command.newSalePrice} د.إ بنجاح.")
+                    } else {
+                        addSystemChatMessage("⚠️ لم نجد للمنتج (${command.productName}) باركود مطبّق لتعديل السعر.")
+                    }
+                }
+                is AppCommand.AddManualDebt -> {
+                    var customer = posDao.getCustomerByName(command.customerName)
+                    if (customer == null) {
+                        val newId = posDao.insertCustomer(Customer(name = command.customerName, phone = null))
+                        customer = Customer(id = newId, name = command.customerName, phone = null)
+                    }
+                    val invoiceNumber = "INV-AI-" + System.currentTimeMillis().toString().takeLast(6)
+                    val invoiceId = posDao.insertInvoice(Invoice(
+                        invoiceNumber = invoiceNumber,
+                        totalAmount = command.amount,
+                        isDebt = true,
+                        customerId = customer.id,
+                        paidAmount = 0.0
+                    ))
+                    posDao.insertInvoiceItems(listOf(InvoiceItem(
+                        invoiceId = invoiceId,
+                        productId = null,
+                        productName = "دين يدوي مقترح من Gemini: ${command.note}",
+                        productBarcode = "",
+                        quantity = 1,
+                        salePrice = command.amount,
+                        purchasePrice = 0.0
+                    )))
+                    addSystemChatMessage("💸 تم تسجيل دين جديد بنجاح بقيمة ${command.amount} د.إ للزبون '${command.customerName}'.")
+                }
+                is AppCommand.RecordDebtPayment -> {
+                    val customer = posDao.getCustomerByName(command.customerName)
+                    if (customer != null) {
+                        val payment = DebtPayment(
+                            customerId = customer.id,
+                            amountPaid = command.amountPaid,
+                            note = command.note ?: "سداد حساب عبر Gemini"
+                        )
+                        posDao.insertDebtPayment(payment)
+                        addSystemChatMessage("✅ تم بنجاح تسجيل دفعة سداد بقيمة ${command.amountPaid} د.إ من الزبون '${command.customerName}'.")
+                    } else {
+                        addSystemChatMessage("⚠️ تعذر استكمال السداد، لم نجد في السجلات زبون يحمل الاسم المباشر '${command.customerName}'.")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            addSystemChatMessage("⚠️ فشل تنفيذ الأمر: ${e.localizedMessage}")
+        }
+    }
+
+    private fun handleAiResponseAndExtractCommands(rawResponse: String) {
+        var cleanText = rawResponse
+        var command: AppCommand? = null
+
+        try {
+            val commandMarker = "COMMAND:"
+            val index = rawResponse.indexOf(commandMarker)
+            if (index != -1) {
+                val jsonStr = rawResponse.substring(index + commandMarker.length).trim()
+                cleanText = rawResponse.substring(0, index).trim()
+
+                val json = org.json.JSONObject(jsonStr)
+                val action = json.optString("action")
+                command = when (action) {
+                    "sort_products" -> {
+                        val criteria = json.optString("criteria", "none")
+                        AppCommand.SortProducts(criteria)
+                    }
+                    "filter_products" -> {
+                        val query = json.optString("query", "")
+                        AppCommand.FilterProducts(query)
+                    }
+                    "view_metrics" -> {
+                        val section = json.optString("section", "")
+                        AppCommand.ViewMetrics(section)
+                    }
+                    "delete_product" -> {
+                        val barcode = json.optString("barcode", "")
+                        val productName = json.optString("productName", "")
+                        AppCommand.DeleteProduct(barcode, productName)
+                    }
+                    "modify_price" -> {
+                        val barcode = json.optString("barcode", "")
+                        val productName = json.optString("productName", "")
+                        val newSalePrice = json.optDouble("newSalePrice", 0.0)
+                        AppCommand.ModifyProductPrice(barcode, productName, newSalePrice)
+                    }
+                    "add_debt" -> {
+                        val customerName = json.optString("customerName", "")
+                        val amount = json.optDouble("amount", 0.0)
+                        val note = json.optString("note", "")
+                        AppCommand.AddManualDebt(customerName, amount, note)
+                    }
+                    "record_payment" -> {
+                        val customerName = json.optString("customerName", "")
+                        val amountPaid = json.optDouble("amountPaid", 0.0)
+                        val note = json.optString("note", null)
+                        AppCommand.RecordDebtPayment(customerName, amountPaid, note)
+                    }
+                    else -> null
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Log.e("PosViewModel", "Failed to parse command JSON: ${e.message}")
+        }
+
+        val currentList = _aiChatMessages.value.toMutableList()
+        currentList.add(ChatMessage(sender = "advisor", text = cleanText))
+        _aiChatMessages.value = currentList
+
+        if (command != null) {
+            executeCommand(command)
+        }
+    }
+
     fun clearAiChat() {
         _aiChatMessages.value = emptyList()
     }
@@ -504,11 +750,28 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
         // Strict Coroutines background execution (Dispatchers.IO) preventing any main thread lag/ANR
         viewModelScope.launch(Dispatchers.IO) {
             val systemInstructionText = """
-                أنت مستشار مالي ومسؤول مخزن فائق الذكاء لتطبيق كاشير. أنت الآن تملك المعرفة المطلقة بكل حرف وتفصيلة مسجلة في التطبيق.
+                أنت مستشار مالي ومسؤول مخزن منفّذ ومساعد ذكي لتطبيق كاشير (Action-Taker). أنت الآن تملك صلاحية اقتراح وتنفيذ إجراءات على قاعدة البيانات ومخزن التطبيق بناءً على كلام المستخدم والتحليل الحسابي الملحق.
                 مرفق لك قائمة بأسماء كل المنتجات بباركوداتها وأسعارها، وقائمة بكل فاتورة تم بيعها وتاريخها، وقائمة بأسماء أصحاب الديون.
-                التعليمات الصارمة: أجب بدقة شديدة ومباشرة جداً "على قدر السؤال". لا تتفلسف، لا تكتب مقدمات، ولا تعطِ نصائح لم تُطلب منك.
-                إذا سُئلت عن منتج معين، ابحث عنه في القائمة المرفقة لك وأجب بمعلوماته.
-                تذكر: المخزون (0) يعني أن المنتج مسجل ومعروف وموجود في النظام ولكن كميته نفذت، فلا تقل أبداً أن المنتج غير موجود، بل قل (المنتج متوفر واسمه كذا ولكن مخزونه 0).
+                
+                تنبيه هام حول الأوامر:
+                عندما يطلب العميل أي تعديل أو ترتيب أو فلترة أو حذف في المخزن أو حسابات الديون، يجب عليك تضمين الإجراء المناسب في سطر مستقل في نهاية رسالتك يبدأ بـ COMMAND: يليه كائن JSON مباشر يصف الإجراء دون أي علامات ترميز إضافية أو كتل برمجية (no Markdown code blocks).
+                
+                صيغ الأوامر المدعومة المسموحة بالـ JSON هي:
+                1. ترتيب المنتجات: COMMAND:{"action":"sort_products","criteria":"price_asc"} (الخيارات المتاحة لـ criteria: price_asc, price_desc, stock_asc, stock_desc, name_asc)
+                2. فلترة المنتجات بنص: COMMAND:{"action":"filter_products","query":"النص للبحث"}
+                3. حذف منتج: COMMAND:{"action":"delete_product","barcode":"الباركود","productName":"اسم المنتج"}
+                4. تعديل سعر منتج: COMMAND:{"action":"modify_price","barcode":"الباركود","productName":"اسم المنتج","newSalePrice":15.0}
+                5. إضافة دين يدوي لزبون: COMMAND:{"action":"add_debt","customerName":"اسم الزبون","amount":250.0,"note":"ملاحظة الدين الكسبي"}
+                6. تسجيل سداد دين من زبون: COMMAND:{"action":"record_payment","customerName":"اسم الزبون","amountPaid":100.0,"note":"البيان"}
+                
+                مثال:
+                أبشر يا فندم، سأقوم بترتيب مخزن المنتجات حسب الأسعار لك تصاعدياً.
+                COMMAND:{"action":"sort_products","criteria":"price_asc"}
+                
+                ملاحظات بالغة الأهمية:
+                - لا تلفق وتخلق بيانات كاذبة! استخدم أسماء الزبائن وثمن البيع الفعلي وأسماء المنتجات والباركودات من قائمة البيانات الحقيقية المبينة بالملخص الملحق بدقة فائقة.
+                - تذكر: المخزون (0) يعني أن المنتج مسجل ومعروف وموجود ولكنه نفد، فلا تقل أبداً أن المنتج غير موجود، بل تعامل معه بحرفية.
+                - أكتب نص الرد الحواري بلباقة باللغة العربية واشرح الإجراء، ثم ألحق COMMAND: في السطر الأخير.
             """.trimIndent()
 
             val dbSummaryContext = buildStoreDataSummary()
@@ -523,15 +786,17 @@ class PosViewModel(application: Application) : AndroidViewModel(application) {
                     history = historyList.dropLast(1) // exclude the newly added user message
                 )
 
-                val updatedList = _aiChatMessages.value.toMutableList()
-                updatedList.add(ChatMessage(sender = "advisor", text = response))
-                _aiChatMessages.value = updatedList
+                withContext(Dispatchers.Main) {
+                    handleAiResponseAndExtractCommands(response)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 val detailedErr = e.localizedMessage ?: e.message ?: e.toString()
-                val updatedList = _aiChatMessages.value.toMutableList()
-                updatedList.add(ChatMessage(sender = "advisor", text = "⚠️ حدث خطأ في النظام: $detailedErr"))
-                _aiChatMessages.value = updatedList
+                withContext(Dispatchers.Main) {
+                    val updatedList = _aiChatMessages.value.toMutableList()
+                    updatedList.add(ChatMessage(sender = "advisor", text = "⚠️ حدث خطأ في النظام: $detailedErr"))
+                    _aiChatMessages.value = updatedList
+                }
             } finally {
                 _isAiLoading.value = false
                 withContext(Dispatchers.Main) {

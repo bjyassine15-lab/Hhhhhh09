@@ -56,6 +56,9 @@ interface PosDao {
     @Query("SELECT * FROM customers WHERE id = :id")
     suspend fun getCustomerById(id: Long): Customer?
 
+    @Query("SELECT * FROM customers WHERE name = :name LIMIT 1")
+    suspend fun getCustomerByName(name: String): Customer?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCustomer(customer: Customer): Long
 
