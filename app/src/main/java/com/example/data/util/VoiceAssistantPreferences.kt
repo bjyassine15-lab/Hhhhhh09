@@ -34,7 +34,7 @@ object VoiceAssistantPreferences {
 
     fun getVoiceModel(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_MODEL, "gemini-2.0-flash-exp") ?: "gemini-2.0-flash-exp"
+        return prefs.getString(KEY_MODEL, "gemini-2.0-flash") ?: "gemini-2.0-flash"
     }
 
     fun saveVoiceName(context: Context, voiceName: String) {

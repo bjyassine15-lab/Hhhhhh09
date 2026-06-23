@@ -1012,9 +1012,9 @@ fun AiAdvisorScreen(
 
                     var modelExpanded by remember { mutableStateOf(false) }
                     val voiceModelsList = listOf(
-                        "gemini-2.0-flash-exp" to "2.0 Flash Exp (مستحسن للاتصال الصوتي المباشر)",
-                        "gemini-2.0-flash" to "2.0 Flash (للنصوص والدردشة العادية)",
-                        "gemini-2.5-flash-native-audio-preview-12-2025" to "2.5 Flash Native-Audio"
+                        "gemini-2.0-flash" to "Gemini 2.0 Flash (مستقر)",
+                        "gemini-3.1-flash-live-preview" to "Gemini 3.1 Flash Live",
+                        "gemini-2.5-flash-native-audio-preview-12-2025" to "Gemini 2.5 Flash Native-Audio"
                     )
 
                     Box(modifier = Modifier.fillMaxWidth()) {

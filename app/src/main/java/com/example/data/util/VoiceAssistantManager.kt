@@ -139,7 +139,7 @@ class VoiceAssistantManager private constructor() {
                 Log.d(TAG, "WebSocket closing: $reason ($code)")
                 if (code != 1000) {
                     val friendlyReason = when (code) {
-                        1008 -> "رمز 1008 (انتهاك السياسة): النموذج المختار غير معرّف أو غير مدعوم للاتصال الصوتي المباشر. يرجى التأكد من تحديد نموذج 'gemini-2.0-flash-exp' في إعدادات المساعد الصوتي."
+                        1008 -> "رمز 1008 (انتهاك السياسة): النموذج غير مدعوم للاتصال الصوتي المباشر. يرجى اختيار 'gemini-2.0-flash' أو 'gemini-3.1-flash-live-preview' في الإعدادات."
                         else -> reason.ifBlank { "بدون تفاصيل إضافية" }
                     }
                     _errorFlow.value = "انقطع الاتصال بالخادم: $friendlyReason (رمز: $code)"
@@ -152,7 +152,7 @@ class VoiceAssistantManager private constructor() {
                 Log.e(TAG, "WebSocket failure: ${t.message}", t)
                 val responseMsg = response?.let { " (رمز الاستجابة: ${it.code} - ${it.message})" } ?: ""
                 val errorMessage = when {
-                    t.message?.contains("1008") == true -> "رمز 1008 (انتهاك السياسة): النموذج غير مدعوم للاتصال الصوتي المباشر. يرجى اختيار 'gemini-2.0-flash-exp'."
+                    t.message?.contains("1008") == true -> "رمز 1008 (انتهاك السياسة): النموذج غير مدعوم للاتصال الصوتي المباشر. يرجى التأكد من اختيار أحد طرازات البث المباشر المعتمدة."
                     response?.code == 403 -> "رمز 403 (غير مصرح به): يرجى مراجعة مفتاح الـ API والتحقق من صلاحيته لنموذج الصوت المباشر."
                     else -> t.localizedMessage ?: "يرجى التحقق من اتصال الإنترنت وصحة مفتاح API الخاص بك."
                 }
