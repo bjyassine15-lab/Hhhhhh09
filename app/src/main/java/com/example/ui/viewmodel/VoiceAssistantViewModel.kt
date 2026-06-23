@@ -107,7 +107,7 @@ class VoiceAssistantViewModel : ViewModel() {
                     val setupObj = JSONObject().apply {
                         put("model", formattedModel)
                         put("generationConfig", JSONObject().apply {
-                            put("responseModalities", JSONArray(listOf("AUDIO")))
+                            put("responseModalities", JSONArray().apply { put("AUDIO") })
                             put("speechConfig", JSONObject().apply {
                                 put("voiceConfig", JSONObject().apply {
                                     put("prebuiltVoiceConfig", JSONObject().apply {

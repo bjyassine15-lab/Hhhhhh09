@@ -2,6 +2,7 @@ package com.example.data.util
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
@@ -10,6 +11,7 @@ import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.util.Base64
 import android.util.Log
+import android.os.Build
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -122,7 +124,7 @@ class VoiceAssistantManager private constructor() {
                 _state.value = VoiceState.CONNECTED
                 
                 // 1. Start Background Playback Consumer
-                startPlaybackConsumer()
+                startPlaybackConsumer(context)
 
                 // 2. Send Setup Configuration Message
                 sendSetupMessage(webSocket, model, voiceName)
@@ -169,7 +171,7 @@ class VoiceAssistantManager private constructor() {
             val setupObj = JSONObject().apply {
                 put("model", formattedModel)
                 put("generationConfig", JSONObject().apply {
-                    put("responseModalities", JSONArray(listOf("AUDIO")))
+                    put("responseModalities", JSONArray().apply { put("AUDIO") })
                     put("speechConfig", JSONObject().apply {
                         put("voiceConfig", JSONObject().apply {
                             put("prebuiltVoiceConfig", JSONObject().apply {
@@ -266,13 +268,29 @@ class VoiceAssistantManager private constructor() {
             }
 
             try {
-                audioRecord = AudioRecord(
-                    MediaRecorder.AudioSource.MIC,
-                    inputSampleRate,
-                    inputChannelConfig,
-                    inputAudioFormat,
-                    bufferSize * 2
-                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val attributionContext = context.createAttributionContext("microphone")
+                    audioRecord = AudioRecord.Builder()
+                        .setContext(attributionContext)
+                        .setAudioSource(MediaRecorder.AudioSource.MIC)
+                        .setAudioFormat(
+                            AudioFormat.Builder()
+                                .setEncoding(inputAudioFormat)
+                                .setSampleRate(inputSampleRate)
+                                .setChannelMask(inputChannelConfig)
+                                .build()
+                        )
+                        .setBufferSizeInBytes(bufferSize * 2)
+                        .build()
+                } else {
+                    audioRecord = AudioRecord(
+                        MediaRecorder.AudioSource.MIC,
+                        inputSampleRate,
+                        inputChannelConfig,
+                        inputAudioFormat,
+                        bufferSize * 2
+                    )
+                }
 
                 if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
                     Log.e(TAG, "AudioRecord could not shut initialize. Please verify permissions.")
@@ -355,7 +373,7 @@ class VoiceAssistantManager private constructor() {
         }
     }
 
-    private fun initAudioTrack() {
+    private fun initAudioTrack(context: Context) {
         if (audioTrack != null) return
         try {
             val minBufSize = AudioTrack.getMinBufferSize(
@@ -363,14 +381,36 @@ class VoiceAssistantManager private constructor() {
                 outputChannelConfig,
                 outputAudioFormat
             )
-            audioTrack = AudioTrack(
-                AudioManager.STREAM_MUSIC,
-                outputSampleRate,
-                outputChannelConfig,
-                outputAudioFormat,
-                minBufSize * 2,
-                AudioTrack.MODE_STREAM
-            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val attributionContext = context.createAttributionContext("microphone")
+                audioTrack = AudioTrack.Builder()
+                    .setContext(attributionContext)
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build()
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(outputAudioFormat)
+                            .setSampleRate(outputSampleRate)
+                            .setChannelMask(outputChannelConfig)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(minBufSize * 2)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build()
+            } else {
+                audioTrack = AudioTrack(
+                    AudioManager.STREAM_MUSIC,
+                    outputSampleRate,
+                    outputChannelConfig,
+                    outputAudioFormat,
+                    minBufSize * 2,
+                    AudioTrack.MODE_STREAM
+                )
+            }
             
             if (audioTrack?.state == AudioTrack.STATE_INITIALIZED) {
                 audioTrack?.play()
@@ -382,10 +422,10 @@ class VoiceAssistantManager private constructor() {
         }
     }
 
-    private fun startPlaybackConsumer() {
+    private fun startPlaybackConsumer(context: Context) {
         playbackJob?.cancel()
         playbackJob = managerScope.launch {
-            initAudioTrack()
+            initAudioTrack(context)
             val track = audioTrack ?: return@launch
             try {
                 // Loop through the channel to consume incoming raw PCM buffers

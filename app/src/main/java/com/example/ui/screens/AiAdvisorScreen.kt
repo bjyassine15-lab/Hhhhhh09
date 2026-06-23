@@ -420,7 +420,20 @@ fun AiAdvisorScreen(
                         }
                         
                         // Live transcript if available
-                        if (liveTranscript.isNotEmpty()) {
+                        if (voiceState == VoiceState.ERROR) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            Text(
+                                text = voiceErrorMessage ?: "حدث خطأ غير معروف في الاتصال بالخادم. يرجى محاولة الاتصال مرة أخرى.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 140.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                lineHeight = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        } else if (liveTranscript.isNotEmpty()) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             Text(
                                 text = liveTranscript,
