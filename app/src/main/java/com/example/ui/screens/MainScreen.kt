@@ -39,14 +39,41 @@ import androidx.compose.ui.window.Dialog
 import com.example.ui.viewmodel.PosViewModel
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.*
+import com.example.ui.viewmodel.VoiceAssistantViewModel
+import com.example.data.util.VoiceState
+import androidx.core.content.ContextCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(
     viewModel: PosViewModel,
     onThemeToggle: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
+
+    val voiceViewModel: VoiceAssistantViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            voiceViewModel.startVoiceSession(context)
+        } else {
+            Toast.makeText(context, "يجب منح التطبيق صلاحية الميكروفون لبدء المساعد الصوتي المباشر.", Toast.LENGTH_LONG).show()
+        }
+    }
+    val voiceState by voiceViewModel.currentVoiceState.collectAsState()
+    val voiceErrorMessage by voiceViewModel.currentErrorMessage.collectAsState()
 
     // Screen navigation tracking
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -54,28 +81,102 @@ fun MainScreen(
     // Dialog state for backup protection
     var showBackupDialog by remember { mutableStateOf(false) }
 
+    // Show errors of the voice assistant in real-time
+    LaunchedEffect(voiceErrorMessage) {
+        voiceErrorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val glowScale by if (voiceState == VoiceState.LISTENING || voiceState == VoiceState.SPEAKING || voiceState == VoiceState.CONNECTING) {
+        infiniteTransition.animateFloat(
+            initialValue = 1.0f,
+            targetValue = 1.8f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "glowScale"
+        )
+    } else {
+        remember { mutableStateOf(1.0f) }
+    }
+
+    val glowAlpha by if (voiceState == VoiceState.LISTENING || voiceState == VoiceState.SPEAKING || voiceState == VoiceState.CONNECTING) {
+        infiniteTransition.animateFloat(
+            initialValue = 0.5f,
+            targetValue = 0.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(800, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "glowAlpha"
+        )
+    } else {
+        remember { mutableStateOf(0.0f) }
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            selectedTab = if (selectedTab == 3) 0 else 3
-                        },
-                        modifier = Modifier
-                            .padding(start = 12.dp)
-                            .size(36.dp)
-                            .background(
-                                color = if (selectedTab == 3) Color(0xFFE040FB).copy(alpha = 0.15f) else Color.Transparent,
-                                shape = CircleShape
-                            )
+                    Box(
+                        modifier = Modifier.padding(start = 12.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "المستشار الذكي",
-                            tint = if (selectedTab == 3) Color(0xFFE040FB) else Color(0xFF8A8A8A),
-                            modifier = Modifier.size(16.dp)
-                        )
+                        // Ambient Breathing/Pulse Glow Animation (only active when connected/connecting)
+                        if (glowAlpha > 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .graphicsLayer {
+                                        scaleX = glowScale
+                                        scaleY = glowScale
+                                    }
+                                    .background(Color(0xFFE040FB).copy(alpha = glowAlpha), CircleShape)
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    color = if (selectedTab == 3 || voiceState != VoiceState.DISCONNECTED) Color(0xFFE040FB).copy(alpha = 0.15f) else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .combinedClickable(
+                                    onClick = {
+                                        selectedTab = if (selectedTab == 3) 0 else 3
+                                    },
+                                    onLongClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        if (voiceState == VoiceState.DISCONNECTED || voiceState == VoiceState.ERROR) {
+                                            val hasPermission = ContextCompat.checkSelfPermission(
+                                                context,
+                                                android.Manifest.permission.RECORD_AUDIO
+                                            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                                            if (hasPermission) {
+                                                voiceViewModel.startVoiceSession(context)
+                                            } else {
+                                                micPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                            }
+                                        } else {
+                                            voiceViewModel.stopVoiceSession()
+                                        }
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "المستشار الذكي",
+                                tint = if (selectedTab == 3 || voiceState != VoiceState.DISCONNECTED) Color(0xFFE040FB) else Color(0xFF8A8A8A),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 },
                 title = {
@@ -267,6 +368,7 @@ fun MainScreen(
             2 -> ReportsScreen(viewModel = viewModel, paddingValues = innerPadding)
             3 -> AiAdvisorScreen(
                 viewModel = viewModel,
+                voiceViewModel = voiceViewModel,
                 paddingValues = innerPadding,
                 onOpenSettings = {}
             )

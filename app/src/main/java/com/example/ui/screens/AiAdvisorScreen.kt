@@ -41,6 +41,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun AiAdvisorScreen(
     viewModel: PosViewModel,
+    voiceViewModel: com.example.ui.viewmodel.VoiceAssistantViewModel,
     paddingValues: PaddingValues,
     onOpenSettings: () -> Unit
 ) {
@@ -57,6 +58,7 @@ fun AiAdvisorScreen(
 
     var showContextPreviewDialog by remember { mutableStateOf(false) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showVoiceSettingsDialog by remember { mutableStateOf(false) }
 
     val isDark = MaterialTheme.colorScheme.background != Color(0xFFF4F6F9)
     val buttonBg = if (isDark) Color(0xFF171717) else Color(0xFFF1F5F9)
@@ -163,22 +165,47 @@ fun AiAdvisorScreen(
                         )
                     }
 
-                    // Key Config / Settings
-                    IconButton(
-                        onClick = { showSettingsDialog = true },
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = buttonBg,
-                            contentColor = Color(0xFFE040FB)
-                        ),
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(buttonBg, RoundedCornerShape(10.dp))
-                    ) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = "إعدادات المفتاح",
-                            modifier = Modifier.size(16.dp)
-                        )
+                    // Key Config / Settings Dropdown
+                    var showSettingsMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(
+                            onClick = { showSettingsMenu = true },
+                            colors = IconButtonDefaults.iconButtonColors(
+                                containerColor = buttonBg,
+                                contentColor = Color(0xFFE040FB)
+                            ),
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(buttonBg, RoundedCornerShape(10.dp))
+                        ) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = "خيارات ضبط الإعدادات",
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = showSettingsMenu,
+                            onDismissRequest = { showSettingsMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("إعدادات المستشار المالي (النصي)", fontSize = 12.sp) },
+                                leadingIcon = { Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                onClick = {
+                                    showSettingsMenu = false
+                                    showSettingsDialog = true
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("إعدادات المساعد الصوتي (Live)", fontSize = 12.sp) },
+                                leadingIcon = { Icon(Icons.Default.RecordVoiceOver, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                                onClick = {
+                                    showSettingsMenu = false
+                                    showVoiceSettingsDialog = true
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -734,6 +761,231 @@ fun AiAdvisorScreen(
                     Text("إلغاء الأمر", color = MaterialTheme.colorScheme.error)
                 }
             }
+        )
+    }
+
+    // --- DIALOG: VOICE ASSISTANT SETTINGS ---
+    if (showVoiceSettingsDialog) {
+        var voiceApiKeyInput by remember { mutableStateOf(voiceViewModel.getSavedVoiceApiKey(context)) }
+        var keyVisibility by remember { mutableStateOf(false) }
+        var selectedVoiceModel by remember { mutableStateOf(voiceViewModel.getVoiceModel(context)) }
+        var selectedVoiceName by remember { mutableStateOf(voiceViewModel.getVoiceName(context)) }
+
+        val errorColor = MaterialTheme.colorScheme.error
+
+        AlertDialog(
+            onDismissRequest = { showVoiceSettingsDialog = false },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.RecordVoiceOver,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "إعدادات المساعد الصوتي (Gemini Live)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                }
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "يرجى تزويد مفتاح API والموديل الخاصين بالاتصال الصوتي المباشر للتجربة الميدانية. يُحفظ هذا المفتاح محلياً وبشكل مستقل.",
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = voiceApiKeyInput,
+                        onValueChange = { voiceApiKeyInput = it },
+                        label = { Text("مفتاح Gemini Live API Key", fontSize = 12.sp) },
+                        singleLine = true,
+                        visualTransformation = if (keyVisibility) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { keyVisibility = !keyVisibility }) {
+                                Icon(
+                                    imageVector = if (keyVisibility) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "نموذج اتصال الصوت المباشر (Bidi Model):",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    var modelExpanded by remember { mutableStateOf(false) }
+                    val voiceModelsList = listOf(
+                        "gemini-2.0-flash-exp" to "2.0 Flash Exp (صوتي مباشر)",
+                        "gemini-2.5-flash-native-audio-preview-12-2025" to "2.5 Flash Native-Audio"
+                    )
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { modelExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = voiceModelsList.firstOrNull { it.first == selectedVoiceModel }?.second ?: selectedVoiceModel,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Icon(
+                                    imageVector = if (modelExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = modelExpanded,
+                            onDismissRequest = { modelExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.9f)
+                        ) {
+                            voiceModelsList.forEach { (modelId, modelLabel) ->
+                                DropdownMenuItem(
+                                    text = { Text(modelLabel, fontSize = 12.sp) },
+                                    onClick = {
+                                        selectedVoiceModel = modelId
+                                        voiceViewModel.saveVoiceModel(context, modelId)
+                                        modelExpanded = false
+                                        Toast.makeText(context, "تم تحديد نموذج الصوت: $modelLabel", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "نبرة الصوت المفضلة للرد (Voice Name):",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    var voiceNameExpanded by remember { mutableStateOf(false) }
+                    val voiceNamesList = listOf(
+                        "Puck" to "Puck (ذكوري هادئ)",
+                        "Charon" to "Charon (ذكوري كلاسيكي)",
+                        "Kore" to "Kore (نسائي واثق)",
+                        "Fenrir" to "Fenrir (ذكوري دافئ)",
+                        "Aoede" to "Aoede (نسائي ناعم)"
+                    )
+
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = { voiceNameExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = voiceNamesList.firstOrNull { it.first == selectedVoiceName }?.second ?: selectedVoiceName,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Icon(
+                                    imageVector = if (voiceNameExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = voiceNameExpanded,
+                            onDismissRequest = { voiceNameExpanded = false },
+                            modifier = Modifier.fillMaxWidth(0.9f)
+                        ) {
+                            voiceNamesList.forEach { (voiceId, voiceLabel) ->
+                                DropdownMenuItem(
+                                    text = { Text(voiceLabel, fontSize = 12.sp) },
+                                    onClick = {
+                                        selectedVoiceName = voiceId
+                                        voiceViewModel.saveVoiceName(context, voiceId)
+                                        voiceNameExpanded = false
+                                        Toast.makeText(context, "تم تحديد نبرة الصوت: $voiceLabel", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                voiceViewModel.saveVoiceApiKey(context, voiceApiKeyInput)
+                                Toast.makeText(context, "تم حفظ إعدادات Gemini Live بنجاح!", Toast.LENGTH_SHORT).show()
+                                showVoiceSettingsDialog = false
+                            }
+                        ) {
+                            Text("تنشيط وحفظ مخصّص", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                voiceViewModel.saveVoiceApiKey(context, "")
+                                voiceApiKeyInput = ""
+                                Toast.makeText(context, "🗑️ تم حذف مفتاح المساعد الصوتي.", Toast.LENGTH_SHORT).show()
+                            }
+                        ) {
+                            Text("مسح الصوت المرتجل", fontSize = 11.sp, color = errorColor)
+                        }
+                    }
+
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { showVoiceSettingsDialog = false }
+                    ) {
+                        Text("إغلاق", fontSize = 11.sp)
+                    }
+                }
+            },
+            dismissButton = null
         )
     }
 }
