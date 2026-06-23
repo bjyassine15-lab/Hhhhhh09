@@ -7,6 +7,7 @@ import android.media.AudioManager
 import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
+import android.media.audiofx.AcousticEchoCanceler
 import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.*
@@ -51,6 +52,9 @@ class VoiceAssistantManager private constructor() {
     private val _errorFlow = MutableStateFlow<String?>(null)
     val errorFlow = _errorFlow.asStateFlow()
 
+    private val _liveTranscript = MutableStateFlow<String>("")
+    val liveTranscript = _liveTranscript.asStateFlow()
+
     private var okHttpClient: OkHttpClient? = null
     private var webSocket: WebSocket? = null
     
@@ -58,6 +62,9 @@ class VoiceAssistantManager private constructor() {
     private var audioTrack: AudioTrack? = null
     
     private var recordJob: Job? = null
+    private var playbackJob: Job? = null
+    private var resetStateJob: Job? = null
+    private val audioQueue = kotlinx.coroutines.channels.Channel<ByteArray>(kotlinx.coroutines.channels.Channel.UNLIMITED)
     private val managerScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private var isRecording = false
@@ -89,6 +96,7 @@ class VoiceAssistantManager private constructor() {
         }
 
         _errorFlow.value = null
+        _liveTranscript.value = ""
         _state.value = VoiceState.CONNECTING
 
         val apiKey = VoiceAssistantPreferences.getVoiceApiKey(context)
@@ -113,10 +121,13 @@ class VoiceAssistantManager private constructor() {
                 Log.d(TAG, "WebSocket Opened")
                 _state.value = VoiceState.CONNECTED
                 
-                // 1. Send Setup Configuration Message
+                // 1. Start Background Playback Consumer
+                startPlaybackConsumer()
+
+                // 2. Send Setup Configuration Message
                 sendSetupMessage(webSocket, model, voiceName)
                 
-                // 2. Start Microphone Recording
+                // 3. Start Microphone Recording
                 startRecording(context)
             }
 
@@ -126,12 +137,26 @@ class VoiceAssistantManager private constructor() {
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                 Log.d(TAG, "WebSocket closing: $reason ($code)")
+                if (code != 1000) {
+                    val friendlyReason = when (code) {
+                        1008 -> "رمز 1008 (انتهاك السياسة): النموذج المختار غير معرّف أو غير مدعوم للاتصال الصوتي المباشر. يرجى التأكد من تحديد نموذج 'gemini-2.0-flash-exp' في إعدادات المساعد الصوتي."
+                        else -> reason.ifBlank { "بدون تفاصيل إضافية" }
+                    }
+                    _errorFlow.value = "انقطع الاتصال بالخادم: $friendlyReason (رمز: $code)"
+                    _state.value = VoiceState.ERROR
+                }
                 stopSession()
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 Log.e(TAG, "WebSocket failure: ${t.message}", t)
-                _errorFlow.value = "حدث خطأ في الاتصال: ${t.localizedMessage ?: "تأكد من صحة المفتاح والإنترنت"}"
+                val responseMsg = response?.let { " (رمز الاستجابة: ${it.code} - ${it.message})" } ?: ""
+                val errorMessage = when {
+                    t.message?.contains("1008") == true -> "رمز 1008 (انتهاك السياسة): النموذج غير مدعوم للاتصال الصوتي المباشر. يرجى اختيار 'gemini-2.0-flash-exp'."
+                    response?.code == 403 -> "رمز 403 (غير مصرح به): يرجى مراجعة مفتاح الـ API والتحقق من صلاحيته لنموذج الصوت المباشر."
+                    else -> t.localizedMessage ?: "يرجى التحقق من اتصال الإنترنت وصحة مفتاح API الخاص بك."
+                }
+                _errorFlow.value = "فشل الاتصال: $errorMessage$responseMsg"
                 _state.value = VoiceState.ERROR
                 stopSessionInternal()
             }
@@ -162,6 +187,9 @@ class VoiceAssistantManager private constructor() {
             webSocket.send(jsonStr)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to create setup json", e)
+            _errorFlow.value = "فشل تنظيم بيانات المساعد الصوتي: ${e.localizedMessage}"
+            _state.value = VoiceState.ERROR
+            stopSessionInternal()
         }
     }
 
@@ -176,6 +204,7 @@ class VoiceAssistantManager private constructor() {
                 _errorFlow.value = "خطأ خادم Gemini: $errMsg"
                 _state.value = VoiceState.ERROR
                 Log.e(TAG, "Server error: $errMsg")
+                stopSessionInternal()
                 return
             }
 
@@ -188,6 +217,15 @@ class VoiceAssistantManager private constructor() {
                     val parts = modelTurn.optJSONArray("parts") ?: return
                     for (i in 0 until parts.length()) {
                         val part = parts.getJSONObject(i)
+                        
+                        // Parse live text transcript if streamed by the model
+                        if (part.has("text")) {
+                            val textStr = part.optString("text", "")
+                            if (textStr.isNotEmpty()) {
+                                _liveTranscript.value += textStr
+                            }
+                        }
+                        
                         val inlineData = part.optJSONObject("inlineData")
                         if (inlineData != null) {
                             val mimeType = inlineData.optString("mimeType", "")
@@ -195,7 +233,7 @@ class VoiceAssistantManager private constructor() {
                             
                             if (base64Data.isNotEmpty() && mimeType.startsWith("audio/")) {
                                 val audioBytes = Base64.decode(base64Data, Base64.DEFAULT)
-                                playAudioBytes(audioBytes)
+                                enqueueAudioBytes(audioBytes)
                             }
                         }
                     }
@@ -206,7 +244,7 @@ class VoiceAssistantManager private constructor() {
                 val interrupted = serverContent.optBoolean("interrupted", false)
                 
                 if (interrupted) {
-                    Log.d(TAG, "Interrupted by User speech")
+                    Log.d(TAG, "Interrupted by User speech (Barge-in VAD)")
                     clearPlaybackQueue()
                 }
             }
@@ -242,6 +280,17 @@ class VoiceAssistantManager private constructor() {
                     _state.value = VoiceState.ERROR
                     stopSession()
                     return@launch
+                }
+
+                // Enable Acoustic Echo Canceler if available on device
+                if (AcousticEchoCanceler.isAvailable()) {
+                    try {
+                        val echoCanceler = AcousticEchoCanceler.create(audioRecord!!.audioSessionId)
+                        echoCanceler?.enabled = true
+                        Log.d(TAG, "Acoustic Echo Canceler successfully enabled")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to initialize Acoustic Echo Canceler: ${e.message}")
+                    }
                 }
 
                 audioRecord?.startRecording()
@@ -333,29 +382,42 @@ class VoiceAssistantManager private constructor() {
         }
     }
 
-    private fun playAudioBytes(bytes: ByteArray) {
-        initAudioTrack()
-        val track = audioTrack ?: return
-        
-        try {
+    private fun startPlaybackConsumer() {
+        playbackJob?.cancel()
+        playbackJob = managerScope.launch {
+            initAudioTrack()
+            val track = audioTrack ?: return@launch
+            try {
+                // Loop through the channel to consume incoming raw PCM buffers
+                for (audioBytes in audioQueue) {
+                    track.write(audioBytes, 0, audioBytes.size)
+                }
+            } catch (e: CancellationException) {
+                Log.d(TAG, "Playback consumer cancelled")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in playback consumer", e)
+            }
+        }
+    }
+
+    private fun enqueueAudioBytes(bytes: ByteArray) {
+        managerScope.launch {
+            audioQueue.send(bytes)
+            
+            // Cancel any pending turn-off details
+            resetStateJob?.cancel()
+
+            if (_state.value != VoiceState.SPEAKING && _state.value != VoiceState.ERROR && _state.value != VoiceState.DISCONNECTED) {
+                _state.value = VoiceState.SPEAKING
+            }
             isPlaying = true
-            _state.value = VoiceState.SPEAKING
             
-            // Push exact sound bytes to streaming track
-            track.write(bytes, 0, bytes.size)
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error playing audio chunk", e)
-        } finally {
-            // Keep state updated in UI
-            managerScope.launch {
-                delay(300L) // Wait a brief gap to see if more bytes stream in
-                if (isPlaying) {
-                    // Simple check if any write is pending or finished
-                    isPlaying = false
-                    if (_state.value == VoiceState.SPEAKING) {
-                        _state.value = VoiceState.LISTENING
-                    }
+            // Wait 500ms. If no subsequent audio chunk arrives, revert state to LISTENING
+            resetStateJob = managerScope.launch {
+                delay(500L)
+                isPlaying = false
+                if (_state.value == VoiceState.SPEAKING) {
+                    _state.value = VoiceState.LISTENING
                 }
             }
         }
@@ -363,6 +425,13 @@ class VoiceAssistantManager private constructor() {
 
     private fun clearPlaybackQueue() {
         Log.d(TAG, "Clearing playback queue")
+        resetStateJob?.cancel()
+        // Drain channel
+        while (true) {
+            val result = audioQueue.tryReceive()
+            if (result.isFailure) break
+        }
+        isPlaying = false
         try {
             audioTrack?.let { track ->
                 if (track.state == AudioTrack.STATE_INITIALIZED) {
@@ -372,7 +441,10 @@ class VoiceAssistantManager private constructor() {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error clearing playback queue", e)
+            Log.e(TAG, "Error flushing AudioTrack", e)
+        }
+        if (_state.value == VoiceState.SPEAKING) {
+            _state.value = VoiceState.LISTENING
         }
     }
 
@@ -387,11 +459,23 @@ class VoiceAssistantManager private constructor() {
         Log.d(TAG, "Stopping session internal")
         isRecording = false
         isPlaying = false
+        resetStateJob?.cancel()
         
         try {
             recordJob?.cancel()
             recordJob = null
         } catch (e: Exception) { /* ignore */ }
+
+        try {
+            playbackJob?.cancel()
+            playbackJob = null
+        } catch (e: Exception) { /* ignore */ }
+
+        // Drain channel items remaining
+        while (true) {
+            val result = audioQueue.tryReceive()
+            if (result.isFailure) break
+        }
 
         try {
             webSocket?.close(1000, "Done")

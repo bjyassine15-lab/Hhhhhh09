@@ -39,6 +39,8 @@ import androidx.compose.ui.window.Dialog
 import com.example.ui.viewmodel.PosViewModel
 import kotlinx.coroutines.launch
 
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -117,6 +119,14 @@ fun MainScreen(
         remember { mutableStateOf(0.0f) }
     }
 
+    val voiceColor = when (voiceState) {
+        VoiceState.CONNECTING -> Color(0xFFFFB300) // Pulse Amber for establishing connection
+        VoiceState.CONNECTED, VoiceState.LISTENING -> Color(0xFF4CAF50) // Bright Green when active & listening
+        VoiceState.SPEAKING -> Color(0xFF00E5FF) // Cool Cyber Blue when talking back
+        VoiceState.ERROR -> Color(0xFFF44336) // Red on unexpected error
+        VoiceState.DISCONNECTED -> Color(0xFFE040FB) // Purple default/selected state
+    }
+
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
@@ -134,7 +144,7 @@ fun MainScreen(
                                         scaleX = glowScale
                                         scaleY = glowScale
                                     }
-                                    .background(Color(0xFFE040FB).copy(alpha = glowAlpha), CircleShape)
+                                    .background(voiceColor.copy(alpha = glowAlpha), CircleShape)
                             )
                         }
 
@@ -143,7 +153,9 @@ fun MainScreen(
                                 .size(36.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    color = if (selectedTab == 3 || voiceState != VoiceState.DISCONNECTED) Color(0xFFE040FB).copy(alpha = 0.15f) else Color.Transparent,
+                                    color = if (voiceState != VoiceState.DISCONNECTED) voiceColor.copy(alpha = 0.2f)
+                                             else if (selectedTab == 3) Color(0xFFE040FB).copy(alpha = 0.15f)
+                                             else Color.Transparent,
                                     shape = CircleShape
                                 )
                                 .combinedClickable(
@@ -157,7 +169,7 @@ fun MainScreen(
                                                 context,
                                                 android.Manifest.permission.RECORD_AUDIO
                                             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-
+ 
                                             if (hasPermission) {
                                                 voiceViewModel.startVoiceSession(context)
                                             } else {
@@ -173,7 +185,9 @@ fun MainScreen(
                             Icon(
                                 imageVector = Icons.Default.AutoAwesome,
                                 contentDescription = "المستشار الذكي",
-                                tint = if (selectedTab == 3 || voiceState != VoiceState.DISCONNECTED) Color(0xFFE040FB) else Color(0xFF8A8A8A),
+                                tint = if (voiceState != VoiceState.DISCONNECTED) voiceColor 
+                                       else if (selectedTab == 3) Color(0xFFE040FB) 
+                                       else Color(0xFF8A8A8A),
                                 modifier = Modifier.size(16.dp)
                             )
                         }

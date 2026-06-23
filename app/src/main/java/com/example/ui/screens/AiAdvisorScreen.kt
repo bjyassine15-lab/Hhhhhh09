@@ -36,6 +36,10 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.viewmodel.ChatMessage
 import com.example.ui.viewmodel.PosViewModel
 import kotlinx.coroutines.launch
+import com.example.data.util.VoiceState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +56,10 @@ fun AiAdvisorScreen(
     val chatMessages by viewModel.aiChatMessages.collectAsState()
     val isLoading by viewModel.isAiLoading.collectAsState()
     val pendingAction by viewModel.pendingAction.collectAsState()
+
+    val voiceState by voiceViewModel.currentVoiceState.collectAsState()
+    val liveTranscript by voiceViewModel.currentLiveTranscript.collectAsState()
+    val voiceErrorMessage by voiceViewModel.currentErrorMessage.collectAsState()
 
     var inputPromptText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -339,6 +347,98 @@ fun AiAdvisorScreen(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            if (voiceState != VoiceState.DISCONNECTED) {
+                Card(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(12.dp)
+                        .fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isDark) Color(0xFF13141F) else Color(0xFFF3F4FD)
+                    ),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE040FB).copy(alpha = 0.3f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // Pulsing icon
+                                val voiceColor = when (voiceState) {
+                                    VoiceState.CONNECTING -> Color(0xFFFFB300)
+                                    VoiceState.CONNECTED, VoiceState.LISTENING -> Color(0xFF4CAF50)
+                                    VoiceState.SPEAKING -> Color(0xFF00E5FF)
+                                    VoiceState.ERROR -> Color(0xFFF44336)
+                                    else -> Color(0xFF8A8A8A)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .background(voiceColor, CircleShape)
+                                )
+                                Text(
+                                    text = when (voiceState) {
+                                        VoiceState.CONNECTING -> "جاري الاتصال بالمستشار الصوتي المباشر..."
+                                        VoiceState.CONNECTED -> "تم الاتصال بالمستشار الصوتي"
+                                        VoiceState.LISTENING -> "المستشار الذكي يستمع إليك الآن... (تحدث)"
+                                        VoiceState.SPEAKING -> "المستشار يتحدث الآن..."
+                                        VoiceState.ERROR -> "حدث خطأ في الاتصال"
+                                        else -> ""
+                                    },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            
+                            IconButton(
+                                onClick = { voiceViewModel.stopVoiceSession() },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "إغلاق الجلسة الصوتية",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                        
+                        // Live transcript if available
+                        if (liveTranscript.isNotEmpty()) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            Text(
+                                text = liveTranscript,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 100.dp)
+                                    .verticalScroll(rememberScrollState()),
+                                lineHeight = 18.sp
+                            )
+                        } else if (voiceState == VoiceState.LISTENING) {
+                            Text(
+                                text = "تحدث مباشرة... سنقوم بنسخ ردود المستشار هنا بالوقت الفعلي.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
                         }
                     }
                 }
@@ -764,17 +864,24 @@ fun AiAdvisorScreen(
         )
     }
 
-    // --- DIALOG: VOICE ASSISTANT SETTINGS ---
+    // --- DIALOG: VOICE ASSISTANT SETTINGS (Gemini Live) ---
     if (showVoiceSettingsDialog) {
         var voiceApiKeyInput by remember { mutableStateOf(voiceViewModel.getSavedVoiceApiKey(context)) }
         var keyVisibility by remember { mutableStateOf(false) }
         var selectedVoiceModel by remember { mutableStateOf(voiceViewModel.getVoiceModel(context)) }
         var selectedVoiceName by remember { mutableStateOf(voiceViewModel.getVoiceName(context)) }
 
+        // Live connection test state variables
+        var isTestingVoiceConnection by remember { mutableStateOf(false) }
+        var testResultFeedback by remember { mutableStateOf<String?>(null) }
+        var testResultSuccess by remember { mutableStateOf(false) }
+
         val errorColor = MaterialTheme.colorScheme.error
 
         AlertDialog(
-            onDismissRequest = { showVoiceSettingsDialog = false },
+            onDismissRequest = { 
+                if (!isTestingVoiceConnection) showVoiceSettingsDialog = false 
+            },
             title = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -806,7 +913,10 @@ fun AiAdvisorScreen(
 
                     OutlinedTextField(
                         value = voiceApiKeyInput,
-                        onValueChange = { voiceApiKeyInput = it },
+                        onValueChange = { 
+                            voiceApiKeyInput = it 
+                            testResultFeedback = null // reset test feedback on edit
+                        },
                         label = { Text("مفتاح Gemini Live API Key", fontSize = 12.sp) },
                         singleLine = true,
                         visualTransformation = if (keyVisibility) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
@@ -823,7 +933,76 @@ fun AiAdvisorScreen(
                         shape = RoundedCornerShape(8.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    // Live connection test execution block
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isTestingVoiceConnection) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .padding(end = 6.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text("جارٍ فحص المفتاح والاتصال...", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                        } else {
+                            TextButton(
+                                onClick = {
+                                    isTestingVoiceConnection = true
+                                    testResultFeedback = null
+                                    
+                                    voiceViewModel.testVoiceConnection(
+                                        context,
+                                        apiKey = voiceApiKeyInput,
+                                        model = selectedVoiceModel,
+                                        voiceName = selectedVoiceName
+                                    ) { success, msg ->
+                                        isTestingVoiceConnection = false
+                                        testResultSuccess = success
+                                        testResultFeedback = msg
+                                    }
+                                }
+                            ) {
+                                Text("⚡ فحص الاتصال بالخادم الآن", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // Connection test visual output panel
+                    testResultFeedback?.let { feedback ->
+                        val cardBg = if (testResultSuccess) Color(0xFFE8F5E9) else Color(0xFFFFEBEE)
+                        val textCol = if (testResultSuccess) Color(0xFF2E7D32) else Color(0xFFC62828)
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = cardBg),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (testResultSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
+                                    contentDescription = null,
+                                    tint = textCol,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = feedback,
+                                    color = textCol,
+                                    fontSize = 11.sp,
+                                    lineHeight = 15.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "نموذج اتصال الصوت المباشر (Bidi Model):",
                         fontSize = 11.sp,
@@ -833,7 +1012,8 @@ fun AiAdvisorScreen(
 
                     var modelExpanded by remember { mutableStateOf(false) }
                     val voiceModelsList = listOf(
-                        "gemini-2.0-flash-exp" to "2.0 Flash Exp (صوتي مباشر)",
+                        "gemini-2.0-flash-exp" to "2.0 Flash Exp (مستحسن للاتصال الصوتي المباشر)",
+                        "gemini-2.0-flash" to "2.0 Flash (للنصوص والدردشة العادية)",
                         "gemini-2.5-flash-native-audio-preview-12-2025" to "2.5 Flash Native-Audio"
                     )
 
@@ -875,6 +1055,7 @@ fun AiAdvisorScreen(
                                         selectedVoiceModel = modelId
                                         voiceViewModel.saveVoiceModel(context, modelId)
                                         modelExpanded = false
+                                        testResultFeedback = null
                                         Toast.makeText(context, "تم تحديد نموذج الصوت: $modelLabel", Toast.LENGTH_SHORT).show()
                                     }
                                 )
@@ -882,7 +1063,7 @@ fun AiAdvisorScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "نبرة الصوت المفضلة للرد (Voice Name):",
                         fontSize = 11.sp,
@@ -937,6 +1118,7 @@ fun AiAdvisorScreen(
                                         selectedVoiceName = voiceId
                                         voiceViewModel.saveVoiceName(context, voiceId)
                                         voiceNameExpanded = false
+                                        testResultFeedback = null
                                         Toast.makeText(context, "تم تحديد نبرة الصوت: $voiceLabel", Toast.LENGTH_SHORT).show()
                                     }
                                 )
@@ -956,6 +1138,7 @@ fun AiAdvisorScreen(
                     ) {
                         Button(
                             modifier = Modifier.weight(1f),
+                            enabled = !isTestingVoiceConnection,
                             onClick = {
                                 voiceViewModel.saveVoiceApiKey(context, voiceApiKeyInput)
                                 Toast.makeText(context, "تم حفظ إعدادات Gemini Live بنجاح!", Toast.LENGTH_SHORT).show()
@@ -967,9 +1150,11 @@ fun AiAdvisorScreen(
 
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
+                            enabled = !isTestingVoiceConnection,
                             onClick = {
                                 voiceViewModel.saveVoiceApiKey(context, "")
                                 voiceApiKeyInput = ""
+                                testResultFeedback = null
                                 Toast.makeText(context, "🗑️ تم حذف مفتاح المساعد الصوتي.", Toast.LENGTH_SHORT).show()
                             }
                         ) {
